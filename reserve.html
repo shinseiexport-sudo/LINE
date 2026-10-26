@@ -89,6 +89,7 @@ var RESERVE_KEY = 'RZK-a7c3e91f5b28d046';
 
 var profile_ = null;
 var submitting_ = false;
+var stores_ = []; // 店舗一覧（受付ルール付き）
 
 window.addEventListener('load', init);
 
@@ -125,6 +126,7 @@ function loadStores() {
       if (stores.length === 1) {
         document.getElementById('hero-title').textContent = stores[0].store_name + ' ご予約フォーム';
       }
+      stores_ = stores;
       var sel = document.getElementById('f-store');
       stores.forEach(function (s) {
         var o = document.createElement('option');
@@ -149,20 +151,62 @@ function startForm() {
   showCard('form');
 }
 
+// ===== 予約の受付ルール（選択した店舗の設定を使う。未設定なら既定値） =====
+var DEFAULT_LEAD_MIN = 60; // 直前この分数は受付不可（店舗設定が空欄のとき）
+var DEFAULT_MIN_DAYS = 0;  // この日数後以降のみ受付（店舗設定が空欄のとき）
+
+// 選択中の店舗の受付ルール
+function storeRules_() {
+  var sel = document.getElementById('f-store');
+  var s = stores_.filter(function (x) { return x.store_id === sel.value; })[0];
+  function num(v, def) {
+    var n = Number(v);
+    return (v !== '' && v !== null && v !== undefined && !isNaN(n)) ? n : def;
+  }
+  return {
+    lead: s ? num(s.reserve_lead_min, DEFAULT_LEAD_MIN) : DEFAULT_LEAD_MIN,
+    days: s ? num(s.reserve_min_days, DEFAULT_MIN_DAYS) : DEFAULT_MIN_DAYS
+  };
+}
+
+// 受付ルールで最も早い日時（"yyyy-MM-dd HH:mm"・端末の日本時間）
+function earliestLocal_() {
+  function p2(n) { return (n < 10 ? '0' : '') + n; }
+  var r = storeRules_();
+  var d = new Date();
+  d.setMinutes(d.getMinutes() + r.lead);
+  if (r.days > 0) {
+    var e = new Date();
+    e.setDate(e.getDate() + r.days);
+    e.setHours(0, 0, 0, 0);
+    if (e.getTime() > d.getTime()) d = e;
+  }
+  return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + ' ' + p2(d.getHours()) + ':' + p2(d.getMinutes());
+}
+
+// 時間の選択肢（10:00〜22:00を15分刻み。受付ルール外の時間はグレーで選べない）
 function buildTimes() {
   var sel = document.getElementById('f-time');
+  var cur = sel.value;
   sel.innerHTML = '';
   var empty = document.createElement('option');
   empty.value = '';
   empty.textContent = '選択してください';
   sel.appendChild(empty);
+  var earliest = earliestLocal_();
+  var dateStr = val('f-date');
   for (var h = 10; h <= 22; h++) {
     [0, 15, 30, 45].forEach(function (m) {
+      var v = (h < 10 ? '0' + h : h) + ':' + (m === 0 ? '00' : m);
       var o = document.createElement('option');
-      o.value = (h < 10 ? '0' + h : h) + ':' + (m === 0 ? '00' : m);
-      o.textContent = o.value;
+      o.value = v;
+      o.textContent = v;
+      if (dateStr && (dateStr + ' ' + v) <= earliest) o.disabled = true;
       sel.appendChild(o);
     });
+  }
+  for (var i = 0; i < sel.options.length; i++) {
+    if (sel.options[i].value === cur && !sel.options[i].disabled) { sel.value = cur; break; }
   }
 }
 
@@ -177,12 +221,14 @@ function buildParty() {
   }
 }
 
+// 予約日の初期値・下限を受付ルールに合わせる（日本時間）。日付を変えたら時間の選択肢も作り直す
 function setMinDate() {
-  var now = new Date(Date.now() + 9 * 60 * 60 * 1000);
-  var today = now.toISOString().slice(0, 10);
   var d = document.getElementById('f-date');
-  d.min = today;
-  d.value = today;
+  d.min = earliestLocal_().slice(0, 10);
+  d.value = d.min;
+  buildTimes();
+  d.addEventListener('change', buildTimes);
+  document.getElementById('f-store').addEventListener('change', buildTimes);
 }
 
 function val(id) {
@@ -242,6 +288,10 @@ function submitReservation() {
   if (!input.customer_name) { fail('お名前を入力してください。'); return; }
   if (input.phone && !/^[0-9\-+()]{10,17}$/.test(input.phone)) { fail('電話番号の形式を確認してください（例: 09012345678）。'); return; }
 
+  // 受付ルールの最終チェック（早すぎる日時は送らせない）
+  var earliest = earliestLocal_();
+  if ((input.date + ' ' + input.time) <= earliest) { fail('ご予約は ' + earliest + ' 以降の日時でお願いいたします。'); return; }
+
   submitting_ = true;
   var btn = document.getElementById('btn');
   btn.disabled = true;
@@ -278,6 +328,5 @@ function submitReservation() {
   });
 }
 </script>
-<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092" integrity="sha512-UKNk8GbxkABxKcXYuLkO16EleLGUkcvJWtpSNmExE0Too3ZaFAxTscNWEc1OdAv5/BikHawapSCaiD2XCmp+Bw==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","spa":2}' crossorigin="anonymous"></script>
 </body>
 </html>
