@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <?!= include('Styles'); ?>
+</head>
+<body>
+
+  <header class="app-header">
+    <div class="app-title">
+      <span class="app-logo">LINE</span>
+      <h1>店舗LINE運用システム</h1>
+    </div>
+    <span class="app-phase">第3段階（グループ・店舗・LINE接続・顧客台帳・予約管理）</span>
+  </header>
+
+  <nav class="tabs">
+    <button type="button" class="tab active" data-tab="group">① グループ設定</button>
+    <button type="button" class="tab" data-tab="stores">② 店舗管理</button>
+    <button type="button" class="tab" data-tab="line">③ LINE接続</button>
+    <button type="button" class="tab" data-tab="customers">④ 顧客台帳</button>
+    <button type="button" class="tab" data-tab="reservations">⑤ 予約管理</button>
+  </nav>
+
+  <main class="container">
+
+    <!-- ======== タブ① グループ設定 ======== -->
+    <section id="tab-group" class="panel active">
+      <div class="card">
+        <h2>グループ設定</h2>
+        <p class="hint">グループの基本情報です。飲食店グループごとに、このスプレッドシートとGASプロジェクトの1セットを使います。</p>
+        <form id="form-group">
+          <label>グループ名 <span class="required">必須</span>
+            <input type="text" id="group-name" placeholder="例：さくらフードグループ">
+          </label>
+          <label>管理者メールアドレス <span class="required">必須</span>
+            <input type="email" id="admin-email" placeholder="例：admin@example.com">
+          </label>
+          <label>タイムゾーン
+            <select id="timezone">
+              <option value="Asia/Tokyo">Asia/Tokyo（日本時間）</option>
+              <option value="UTC">UTC</option>
+              <option value="America/Los_Angeles">America/Los_Angeles</option>
+            </select>
+          </label>
+          <div class="form-actions">
+            <button type="submit" class="btn primary">保存する</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>システム情報</h2>
+        <table class="kv">
+          <tr><th>グループID</th><td id="group-id">—</td></tr>
+          <tr><th>システムバージョン</th><td id="system-version">—</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <!-- ======== タブ② 店舗管理 ======== -->
+    <section id="tab-stores" class="panel">
+      <div class="card">
+        <div class="card-head">
+          <h2>店舗一覧</h2>
+          <button type="button" id="btn-new-store" class="btn primary">＋ 店舗を追加</button>
+        </div>
+        <p class="hint">同じグループ内の複数店舗を登録できます。店をやめるときは削除ではなく「利用停止」にします（履歴が消えません）。</p>
+        <div class="table-wrap">
+          <table class="list">
+            <thead>
+              <tr><th>店舗ID</th><th>店舗名</th><th>電話番号</th><th>状態</th><th>操作</th></tr>
+            </thead>
+            <tbody id="stores-tbody"></tbody>
+          </table>
+        </div>
+        <p id="stores-empty" class="empty hidden">まだ店舗がありません。「＋ 店舗を追加」から登録してください。</p>
+      </div>
+    </section>
+
+    <!-- ======== タブ③ LINE接続 ======== -->
+    <section id="tab-line" class="panel">
+      <div class="card">
+        <h2>接続状態</h2>
+        <div class="line-status">
+          <div class="line-status-row"><span>接続状態</span><span><span id="line-badge" class="badge off">未接続</span></span></div>
+          <div class="line-status-row"><span>最終確認日時</span><span id="line-last-checked">—</span></div>
+          <div class="line-status-row"><span>チャネルID</span><span id="line-channel-id-view">—</span></div>
+          <div class="line-status-row"><span>ボット表示名</span><span id="line-bot-name">—</span></div>
+          <div class="line-status-row"><span>基本ID（@で始まるID）</span><span id="line-bot-basic-id">—</span></div>
+          <div class="line-status-row"><span>ボットユーザーID</span><span id="line-bot-user-id">—</span></div>
+        </div>
+        <p class="hint">ボット表示名と基本IDは「接続確認」を実行したときに表示されます。</p>
+        <div class="form-actions">
+          <button type="button" id="btn-retest" class="btn">接続を再確認</button>
+          <button type="button" id="btn-disconnect" class="btn danger">トークンを削除して初期化</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>トークンの保存と接続確認</h2>
+        <ol class="steps">
+          <li><a href="https://developers.line.biz/console/" target="_blank" rel="noopener">LINE Developersコンソール</a>で、Messaging APIチャネルを開きます。</li>
+          <li>「基本設定」タブで「チャネルID」の数字を控えます。</li>
+          <li>「Messaging API設定」タブの「チャネルアクセストークン（長期）」で「発行」を押し、表示された文字列をコピーします。</li>
+          <li>下のフォームにチャネルIDとトークンを貼り付けて「保存して接続確認」を押します。</li>
+        </ol>
+        <form id="form-line">
+          <label>チャネルID
+            <input type="text" id="line-channel-id" placeholder="例：1234567890（基本設定のチャネルID）" inputmode="numeric">
+          </label>
+          <label>チャネルアクセストークン（長期）
+            <input type="password" id="line-token" autocomplete="off" placeholder="ここに貼り付けてください">
+          </label>
+          <p class="hint">トークンはスプレッドシートにも画面にも表示されません。GASの「スクリプトプロパティ」にのみ保存されます。</p>
+          <div class="form-actions">
+            <button type="submit" class="btn primary">保存して接続確認</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>Webhook連携（Cloudflare Workers）</h2>
+        <p class="hint">LINEからのイベントは、署名検証を行うCloudflare Workerを経由してGASへ届きます。設定手順は配布ファイルの「README-cloudflare.md」を参照してください。Cloudflareの変数 GAS_WEBHOOK_URL には、この「GAS WebアプリURL」ではなく、Webhook用デプロイ（手順C-2.5で「全員」アクセスで作成）のURLを使ってください。</p>
+        <table class="kv">
+          <tr><th>GAS WebアプリURL</th><td id="webhook-gas-url">—</td></tr>
+          <tr><th>共有キー</th><td><span id="webhook-shared-key">—</span>　<button type="button" class="btn small" id="btn-copy-shared-key">コピー</button></td></tr>
+        </table>
+      </div>
+
+      <div class="card hidden" id="line-error-guide">
+        <h2>接続できないときは</h2>
+        <ul class="steps">
+          <li><b>HTTP 401（トークン無効）</b>：トークンが古いか違います。コンソールで「チャネルアクセストークン（長期）」を再発行し、新しいトークンで保存し直してください（再発行すると古い長期トークンは自動的に無効になります）。</li>
+          <li><b>コピー漏れ・余分な空白</b>：トークンを貼り直してください。</li>
+          <li><b>チャネル種別の間違い</b>：Messaging APIチャネルのトークンか確認してください（LINEログイン用チャネルではありません）。</li>
+          <li><b>それでもだめな場合</b>：LINE側の一時的な障害の可能性があるため、少し待ってから「接続を再確認」を押してください。</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ======== タブ④ 顧客台帳 ======== -->
+    <section id="tab-customers" class="panel">
+      <div class="card">
+        <div class="card-head">
+          <h2>顧客一覧</h2>
+          <button type="button" id="btn-import-followers" class="btn primary">既存の友だちを取り込む</button>
+        </div>
+        <p class="hint">グループ共通の顧客台帳です。Webhook設定後は、友だち追加で自動登録され、友だち解除では「解除済み」に変わります（履歴は消えません）。メッセージの本文は保存しません。</p>
+        <p class="hint" id="customers-stats">—</p>
+        <input type="text" id="customer-search" class="text-input" placeholder="名前やIDで絞り込む">
+        <div class="table-wrap">
+          <table class="list">
+            <thead>
+              <tr><th>顧客ID</th><th>表示名</th><th>友だち状態</th><th>登録日時</th><th>最終反応</th></tr>
+            </thead>
+            <tbody id="customers-tbody"></tbody>
+          </table>
+        </div>
+        <p id="customers-empty" class="empty hidden">まだ顧客がいません。Webhook設定後に友だち追加をすると自動登録されます。すでに友だちがいる場合は「既存の友だちを取り込む」を実行してください。</p>
+      </div>
+    </section>
+
+    <!-- ======== タブ⑤ 予約管理 ======== -->
+    <section id="tab-reservations" class="panel">
+      <div class="card">
+        <div class="card-head">
+          <h2>予約一覧</h2>
+          <button type="button" id="btn-new-reservation" class="btn primary">＋ 予約を登録</button>
+        </div>
+        <p class="hint">電話などで受けた予約を店舗ごとに登録します。当日は「予約済み → 来店済み」に切り替え、来なかったら「無断キャンセル」にします。削除は履歴ごと消えるので、ふだんは「キャンセル」を使ってください。</p>
+        <div class="filter-row">
+          <input type="date" id="reservation-date" class="text-input narrow">
+          <select id="reservation-store-filter" class="text-input narrow"></select>
+          <select id="reservation-status-filter" class="text-input narrow">
+            <option value="">状態: すべて</option>
+            <option value="reserved">予約済み</option>
+            <option value="visited">来店済み</option>
+            <option value="cancelled">キャンセル</option>
+            <option value="no_show">無断キャンセル</option>
+          </select>
+          <button type="button" id="btn-reservation-clear" class="btn small">条件をクリア</button>
+        </div>
+        <p class="hint" id="reservations-stats">—</p>
+        <div class="table-wrap">
+          <table class="list">
+            <thead>
+              <tr><th>日時</th><th>店舗</th><th>お名前</th><th>電話</th><th>人数</th><th>メモ</th><th>状態</th><th>操作</th></tr>
+            </thead>
+            <tbody id="reservations-tbody"></tbody>
+          </table>
+        </div>
+        <p id="reservations-empty" class="empty hidden">予約はまだありません。「＋ 予約を登録」から追加してください。</p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- 店舗の追加・編集モーダル -->
+  <div id="modal-store" class="modal hidden">
+    <div class="modal-box">
+      <h2 id="modal-title">店舗を追加</h2>
+      <form id="form-store">
+        <input type="hidden" id="store-id">
+        <label>店舗名 <span class="required">必須</span>
+          <input type="text" id="store-name" placeholder="例：さくら食堂 本店">
+        </label>
+        <label>住所
+          <input type="text" id="store-address" placeholder="例：東京都○○区○○1-2-3">
+        </label>
+        <label>電話番号
+          <input type="tel" id="store-phone" placeholder="例：03-1234-5678">
+        </label>
+        <label>営業時間
+          <input type="text" id="store-hours" placeholder="例：11:00-22:00（定休日: 月）">
+        </label>
+        <div class="form-actions">
+          <button type="button" id="modal-cancel" class="btn">キャンセル</button>
+          <button type="submit" class="btn primary">保存する</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 予約の追加・編集モーダル -->
+  <div id="modal-reservation" class="modal hidden">
+    <div class="modal-box">
+      <h2 id="reservation-modal-title">予約を追加</h2>
+      <form id="form-reservation">
+        <input type="hidden" id="reservation-id">
+        <label>店舗 <span class="required">必須</span>
+          <select id="reservation-store"></select>
+        </label>
+        <label>顧客（台帳から選ぶ・任意）
+          <select id="reservation-customer"></select>
+        </label>
+        <label>お名前 <span class="required">必須</span>
+          <input type="text" id="reservation-name" placeholder="例：さくら太郎">
+        </label>
+        <label>電話番号
+          <input type="tel" id="reservation-phone" placeholder="例：090-1234-5678">
+        </label>
+        <label>予約日 <span class="required">必須</span>
+          <input type="date" id="reservation-date-input">
+        </label>
+        <label>予約時刻（15分単位） <span class="required">必須</span>
+          <select id="reservation-time-input"></select>
+        </label>
+        <label>人数 <span class="required">必須</span>
+          <input type="number" id="reservation-party" min="1" max="99" value="2">
+        </label>
+        <label>メニュー・メモ
+          <input type="text" id="reservation-notes" placeholder="例：記念日コース／アレルギー: エビ">
+        </label>
+        <div class="form-actions">
+          <button type="button" id="reservation-modal-cancel" class="btn">キャンセル</button>
+          <button type="submit" class="btn primary">保存する</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <div id="loading" class="loading hidden"><div class="spinner"></div></div>
+
+  <?!= include('Script'); ?>
+</body>
+</html>
