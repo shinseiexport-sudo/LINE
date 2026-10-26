@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ご予約</title>
+<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'Hiragino Sans', 'Noto Sans JP', sans-serif; background: #f4f2ee; color: #2a2622; padding: 16px 12px 40px; }
+  .wrap { max-width: 480px; margin: 0 auto; }
+  .hero { background: #f59b2d; border-radius: 16px; padding: 22px 18px; text-align: center; color: #fff; margin-bottom: 14px; }
+  .hero h1 { font-size: 20px; letter-spacing: 1px; }
+  .hero p { font-size: 12px; margin-top: 6px; opacity: .92; }
+  .card { background: #fff; border-radius: 14px; padding: 18px 16px; box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 14px; }
+  label { display: block; font-size: 13px; font-weight: bold; margin: 14px 0 6px; }
+  label:first-child { margin-top: 0; }
+  select, input, textarea { width: 100%; padding: 12px; font-size: 16px; border: 1px solid #ddd6cc; border-radius: 10px; background: #fff; color: #2a2622; }
+  textarea { height: 76px; resize: vertical; }
+  .btn { width: 100%; margin-top: 20px; padding: 15px; font-size: 16px; font-weight: bold; color: #fff; background: #f59b2d; border: 0; border-radius: 12px; cursor: pointer; }
+  .btn:disabled { background: #cbc4b8; cursor: not-allowed; }
+  .btn-sub { width: 100%; margin-top: 10px; padding: 12px; font-size: 14px; color: #55504a; background: #efece6; border: 0; border-radius: 12px; cursor: pointer; }
+  .msg { margin-top: 12px; font-size: 13px; color: #c0392b; text-align: center; }
+  .hidden { display: none; }
+  .center { text-align: center; font-size: 14px; color: #7a736a; }
+  .done-title { font-size: 19px; font-weight: bold; color: #2a7a3d; text-align: center; margin-bottom: 10px; }
+  .done-id { text-align: center; font-size: 15px; margin-bottom: 12px; }
+  .done-id b { font-size: 18px; letter-spacing: 1px; }
+  .done-detail { font-size: 14px; line-height: 1.9; color: #55504a; background: #faf8f4; border-radius: 10px; padding: 12px 14px; }
+  .note { font-size: 11px; color: #9a938a; margin-top: 10px; line-height: 1.6; }
+  .plain { font-size: 14px; line-height: 1.8; }
+  #err-detail { font-size: 12px; color: #9a938a; margin-top: 10px; line-height: 1.6; word-break: break-all; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <h1 id="hero-title">ご予約フォーム</h1>
+    <p>ご入力のうえ「予約を送信する」を押してください</p>
+  </div>
+
+  <div id="loading" class="card center">準備中です...</div>
+
+  <div id="errorSetup" class="card hidden">
+    <p class="plain" id="err-main">予約フォームを開けませんでした。</p>
+    <p id="err-detail"></p>
+    <button class="btn-sub" type="button" onclick="location.reload()">もう一度読み込む</button>
+  </div>
+
+  <form id="form" class="card hidden" onsubmit="return false;">
+    <label>店舗</label>
+    <select id="f-store"></select>
+
+    <label>予約日</label>
+    <input type="date" id="f-date">
+
+    <label>時間</label>
+    <select id="f-time"></select>
+
+    <label>人数</label>
+    <select id="f-party"></select>
+
+    <label>お名前</label>
+    <input type="text" id="f-name" placeholder="例: 山田 太郎">
+
+    <label>電話番号</label>
+    <input type="tel" id="f-phone" placeholder="例: 09012345678">
+
+    <label>メモ（任意）</label>
+    <textarea id="f-notes" placeholder="アレルギー、座席のご希望など"></textarea>
+
+    <button class="btn" id="btn" type="button" onclick="submitReservation()">予約を送信する</button>
+    <p id="msg" class="msg hidden"></p>
+    <p class="note">送信後の変更・キャンセルは店舗までご連絡ください。</p>
+  </form>
+
+  <div id="done" class="card hidden">
+    <p class="done-title">ご予約を受け付けました</p>
+    <p class="done-id">予約番号 <b id="done-id"></b></p>
+    <div id="done-detail" class="done-detail"></div>
+  </div>
+</div>
+
+<script>
+// ===== 設定（GitHub Pages版はここに直書きします） =====
+var LIFF_ID = '2012203822-F8P4xz3m';
+var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxKLdgvye_g34TXQFopTr-S6E5FaFfGPmXCmSxoiXJqSxeaEC7akE0L85vmJdJFPY0KsA/exec';
+var RESERVE_KEY = 'RZK-a7c3e91f5b28d046';
+
+var profile_ = null;
+var submitting_ = false;
+
+window.addEventListener('load', init);
+
+setTimeout(function () {
+  if (!document.getElementById('loading').classList.contains('hidden')) {
+    showError('読み込みに時間がかかっています。通信状態の良い場所でもう一度お試しください。');
+  }
+}, 15000);
+
+function init() {
+  liff.init({ liffId: LIFF_ID }).then(function () {
+    if (!liff.isLoggedIn()) {
+      showError('LINEの中から開いてください。お店から送られてきたリンクを、LINEのトーク内でタップしてください。');
+      return;
+    }
+    return liff.getProfile().then(function (p) { profile_ = p; })
+      .catch(function (err) { profile_ = null; })
+      .then(function () { loadStores(); });
+  }).catch(function (err) {
+    showError('フォームの初期化に失敗しました。', err);
+  });
+}
+
+// 店舗一覧をGASの公開APIから取得
+function loadStores() {
+  fetch(EXEC_URL + '?page=api&act=stores')
+    .then(function (res) { return res.json(); })
+    .then(function (data) {
+      var stores = (data && data.stores) || [];
+      if (!data || !data.ok || stores.length === 0) {
+        showError('予約できる店舗が登録されていません。店舗側の設定を確認してください。');
+        return;
+      }
+      if (stores.length === 1) {
+        document.getElementById('hero-title').textContent = stores[0].store_name + ' ご予約フォーム';
+      }
+      var sel = document.getElementById('f-store');
+      stores.forEach(function (s) {
+        var o = document.createElement('option');
+        o.value = s.store_id;
+        o.textContent = s.store_name;
+        sel.appendChild(o);
+      });
+      startForm();
+    })
+    .catch(function (err) {
+      showError('店舗一覧の取得に失敗しました。', err);
+    });
+}
+
+function startForm() {
+  if (profile_ && profile_.displayName) {
+    document.getElementById('f-name').value = profile_.displayName;
+  }
+  buildTimes();
+  buildParty();
+  setMinDate();
+  showCard('form');
+}
+
+function buildTimes() {
+  var sel = document.getElementById('f-time');
+  sel.innerHTML = '';
+  var empty = document.createElement('option');
+  empty.value = '';
+  empty.textContent = '選択してください';
+  sel.appendChild(empty);
+  for (var h = 10; h <= 22; h++) {
+    [0, 15, 30, 45].forEach(function (m) {
+      var o = document.createElement('option');
+      o.value = (h < 10 ? '0' + h : h) + ':' + (m === 0 ? '00' : m);
+      o.textContent = o.value;
+      sel.appendChild(o);
+    });
+  }
+}
+
+function buildParty() {
+  var sel = document.getElementById('f-party');
+  sel.innerHTML = '';
+  for (var i = 1; i <= 12; i++) {
+    var o = document.createElement('option');
+    o.value = String(i);
+    o.textContent = i + '名';
+    sel.appendChild(o);
+  }
+}
+
+function setMinDate() {
+  var now = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  var today = now.toISOString().slice(0, 10);
+  var d = document.getElementById('f-date');
+  d.min = today;
+  d.value = today;
+}
+
+function val(id) {
+  var el = document.getElementById(id);
+  return el ? el.value.replace(/^\s+|\s+$/g, '') : '';
+}
+
+function showCard(id) {
+  ['loading', 'form', 'done', 'errorSetup'].forEach(function (n) {
+    document.getElementById(n).classList.add('hidden');
+  });
+  document.getElementById(id).classList.remove('hidden');
+}
+
+function showError(main, err) {
+  document.getElementById('err-main').textContent = main;
+  document.getElementById('err-detail').textContent =
+    err && err.message ? '（' + err.message + '）' : '';
+  showCard('errorSetup');
+}
+
+function fail(m) {
+  submitting_ = false;
+  var btn = document.getElementById('btn');
+  btn.disabled = false;
+  btn.textContent = '予約を送信する';
+  var msg = document.getElementById('msg');
+  msg.textContent = m;
+  msg.classList.remove('hidden');
+}
+
+function submitReservation() {
+  if (submitting_) return;
+
+  var storeSel = document.getElementById('f-store');
+  var partySel = document.getElementById('f-party');
+  var storeName = storeSel.options[storeSel.selectedIndex] ? storeSel.options[storeSel.selectedIndex].textContent : '';
+  var partyText = partySel.options[partySel.selectedIndex] ? partySel.options[partySel.selectedIndex].textContent : '';
+
+  var input = {
+    key: RESERVE_KEY,
+    lineUserId: profile_ ? String(profile_.userId || '') : '',
+    lineName: profile_ ? String(profile_.displayName || '') : '',
+    store_id: val('f-store'),
+    date: val('f-date'),
+    time: val('f-time'),
+    party_size: val('f-party'),
+    customer_name: val('f-name'),
+    phone: val('f-phone'),
+    notes: val('f-notes')
+  };
+
+  if (!input.lineUserId) { fail('LINEの情報を取得できませんでした。リンクを開き直してください。'); return; }
+  if (!input.store_id) { fail('店舗を選択してください。'); return; }
+  if (!input.date) { fail('予約日を選択してください。'); return; }
+  if (!input.time) { fail('時間を選択してください。'); return; }
+  if (!input.customer_name) { fail('お名前を入力してください。'); return; }
+  if (input.phone && !/^[0-9\-+()]{10,17}$/.test(input.phone)) { fail('電話番号の形式を確認してください（例: 09012345678）。'); return; }
+
+  submitting_ = true;
+  var btn = document.getElementById('btn');
+  btn.disabled = true;
+  btn.textContent = '送信中...';
+  document.getElementById('msg').classList.add('hidden');
+
+  var ctrl = ('AbortController' in window) ? new AbortController() : null;
+  var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 60000) : null;
+
+  // GETで送信します（GASへのブラウザPOSTはリダイレクトの仕様で壊れるため）
+  fetch(EXEC_URL + '?page=api&act=reserve&d=' + encodeURIComponent(JSON.stringify(input)), {
+    method: 'GET',
+    signal: ctrl ? ctrl.signal : undefined
+  }).then(function (res) {
+    return res.json();
+  }).then(function (data) {
+    if (!data || !data.ok) {
+      throw new Error(data && data.message ? data.message : '送信に失敗しました。');
+    }
+    showCard('done');
+    document.getElementById('done-id').textContent = data.reservation_id || '';
+    document.getElementById('done-detail').textContent =
+      storeName + '／' + input.date + ' ' + input.time + '／' + partyText;
+  }).catch(function (err) {
+    if (err && err.name === 'AbortError') {
+      fail('時間切れになりました。通信状態の良い場所でもう一度お試しください。');
+    } else if (err && err.message && err.message.indexOf('Failed to fetch') !== -1) {
+      fail('通信に失敗しました。電波の良い場所でもう一度お試しください。');
+    } else {
+      fail(err && err.message ? err.message : '送信に失敗しました。');
+    }
+  }).then(function () {
+    if (timer) clearTimeout(timer);
+  });
+}
+</script>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092" integrity="sha512-UKNk8GbxkABxKcXYuLkO16EleLGUkcvJWtpSNmExE0Too3ZaFAxTscNWEc1OdAv5/BikHawapSCaiD2XCmp+Bw==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","spa":2}' crossorigin="anonymous"></script>
+</body>
+</html>
