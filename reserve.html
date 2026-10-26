@@ -165,7 +165,9 @@ function storeRules_() {
   }
   return {
     lead: s ? num(s.reserve_lead_min, DEFAULT_LEAD_MIN) : DEFAULT_LEAD_MIN,
-    days: s ? num(s.reserve_min_days, DEFAULT_MIN_DAYS) : DEFAULT_MIN_DAYS
+    days: s ? num(s.reserve_min_days, DEFAULT_MIN_DAYS) : DEFAULT_MIN_DAYS,
+    open: (s && s.reserve_open_time) || '10:00',
+    close: (s && s.reserve_close_time) || '22:00'
   };
 }
 
@@ -184,7 +186,7 @@ function earliestLocal_() {
   return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + ' ' + p2(d.getHours()) + ':' + p2(d.getMinutes());
 }
 
-// 時間の選択肢（10:00〜22:00を15分刻み。受付ルール外の時間はグレーで選べない）
+// 時間の選択肢（営業時間内を15分刻みで表示。受付ルール外の時間はグレーで選べない）
 function buildTimes() {
   var sel = document.getElementById('f-time');
   var cur = sel.value;
@@ -195,9 +197,11 @@ function buildTimes() {
   sel.appendChild(empty);
   var earliest = earliestLocal_();
   var dateStr = val('f-date');
-  for (var h = 10; h <= 22; h++) {
+  var rules = storeRules_();
+  for (var h = 0; h <= 23; h++) {
     [0, 15, 30, 45].forEach(function (m) {
       var v = (h < 10 ? '0' + h : h) + ':' + (m === 0 ? '00' : m);
+      if (v < rules.open || v > rules.close) return; // 営業時間外は表示しない
       var o = document.createElement('option');
       o.value = v;
       o.textContent = v;
