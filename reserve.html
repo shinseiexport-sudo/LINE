@@ -30,6 +30,9 @@
   .note { font-size: 11px; color: #9a938a; margin-top: 10px; line-height: 1.6; }
   .plain { font-size: 14px; line-height: 1.8; }
   #err-detail { font-size: 12px; color: #9a938a; margin-top: 10px; line-height: 1.6; word-break: break-all; }
+  .hint-msg { margin-top: 6px; font-size: 12px; line-height: 1.6; }
+  .hint-ok { color: #2a7a3d; }
+  .hint-ng { color: #c0392b; font-weight: bold; }
 </style>
 </head>
 <body>
@@ -53,6 +56,7 @@
 
     <label>予約日</label>
     <input type="date" id="f-date">
+    <p id="date-hint" class="hint-msg hidden"></p>
 
     <label>時間</label>
     <select id="f-time"></select>
@@ -167,8 +171,33 @@ function storeRules_() {
     lead: s ? num(s.reserve_lead_min, DEFAULT_LEAD_MIN) : DEFAULT_LEAD_MIN,
     days: s ? num(s.reserve_min_days, DEFAULT_MIN_DAYS) : DEFAULT_MIN_DAYS,
     open: (s && s.reserve_open_time) || '10:00',
-    close: (s && s.reserve_close_time) || '22:00'
+    close: (s && s.reserve_close_time) || '22:00',
+    stop: !!(s && s.reserve_stop === 'stop'),
+    cap: (s && typeof s.reserve_capacity === 'number' && s.reserve_capacity > 0) ? s.reserve_capacity : 0
   };
+}
+
+// 日付選択の下限メッセージ（「○月○日以降のご予約をお願いします」など）
+function weekdayJa_(d) { return ['日', '月', '火', '水', '木', '金', '土'][d.getDay()]; }
+function updateDateHint() {
+  var hint = document.getElementById('date-hint');
+  if (!hint) return;
+  var r = storeRules_();
+  hint.className = 'hint-msg';
+  if (r.stop) {
+    hint.textContent = 'ただいま予約を受け付けておりません。店舗までご連絡ください。';
+    hint.classList.add('hint-ng');
+  } else if (r.days > 0) {
+    var e = new Date();
+    e.setDate(e.getDate() + r.days);
+    hint.textContent = (e.getMonth() + 1) + '月' + e.getDate() + '日（' + weekdayJa_(e) + '）以降のご予約をお願いします';
+    hint.classList.add('hint-ok');
+  } else {
+    hint.textContent = '';
+    hint.classList.add('hidden');
+    return;
+  }
+  hint.classList.remove('hidden');
 }
 
 // 受付ルールで最も早い日時（"yyyy-MM-dd HH:mm"・端末の日本時間）
@@ -198,6 +227,7 @@ function buildTimes() {
   var earliest = earliestLocal_();
   var dateStr = val('f-date');
   var rules = storeRules_();
+  if (rules.stop) { updateDateHint(); return; }
   for (var h = 0; h <= 23; h++) {
     [0, 15, 30, 45].forEach(function (m) {
       var v = (h < 10 ? '0' + h : h) + ':' + (m === 0 ? '00' : m);
@@ -209,6 +239,7 @@ function buildTimes() {
       sel.appendChild(o);
     });
   }
+  updateDateHint();
   for (var i = 0; i < sel.options.length; i++) {
     if (sel.options[i].value === cur && !sel.options[i].disabled) { sel.value = cur; break; }
   }
@@ -226,13 +257,23 @@ function buildParty() {
 }
 
 // 予約日の初期値・下限を受付ルールに合わせる（日本時間）。日付を変えたら時間の選択肢も作り直す
+function applyDateMin() {
+  var d = document.getElementById('f-date');
+  var min = earliestLocal_().slice(0, 10);
+  d.min = min;
+  if (d.value && d.value < min) d.value = min;
+}
+
 function setMinDate() {
   var d = document.getElementById('f-date');
   d.min = earliestLocal_().slice(0, 10);
   d.value = d.min;
   buildTimes();
   d.addEventListener('change', buildTimes);
-  document.getElementById('f-store').addEventListener('change', buildTimes);
+  document.getElementById('f-store').addEventListener('change', function () {
+    applyDateMin();
+    buildTimes();
+  });
 }
 
 function val(id) {
@@ -295,6 +336,8 @@ function submitReservation() {
   // 受付ルールの最終チェック（早すぎる日時は送らせない）
   var earliest = earliestLocal_();
   if ((input.date + ' ' + input.time) <= earliest) { fail('ご予約は ' + earliest + ' 以降の日時でお願いいたします。'); return; }
+
+  if (storeRules_().stop) { fail('ただいま予約を受け付けておりません。店舗までご連絡ください。'); return; }
 
   submitting_ = true;
   var btn = document.getElementById('btn');
