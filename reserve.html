@@ -33,6 +33,19 @@
   .hint-msg { margin-top: 6px; font-size: 12px; line-height: 1.6; }
   .hint-ok { color: #2a7a3d; }
   .hint-ng { color: #c0392b; font-weight: bold; }
+  /* 日付カレンダー */
+  .date-btn { width: 100%; padding: 12px; font-size: 16px; border: 1px solid #ddd6cc; border-radius: 10px; background: #fff; color: #2a2622; cursor: pointer; text-align: left; }
+  .date-btn.empty { color: #9a938a; }
+  .cal { margin-top: 8px; background: #fff; border: 1px solid #ddd6cc; border-radius: 12px; padding: 10px; }
+  .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .cal-title { font-size: 14px; font-weight: bold; }
+  .cal-nav { border: 0; background: #efece6; color: #55504a; border-radius: 8px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
+  .cal-nav:disabled { opacity: .35; cursor: default; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; text-align: center; }
+  .cal-dow { font-size: 11px; color: #9a938a; padding: 2px 0; }
+  .cal-day { padding: 9px 0; border-radius: 8px; background: #f7f4ef; font-size: 14px; cursor: pointer; }
+  .cal-day.off { background: #2a2622; color: #6f6960; cursor: default; } /* 黒＝予約できない日 */
+  .cal-day.sel { background: #f59b2d; color: #fff; font-weight: bold; }
 </style>
 </head>
 <body>
@@ -55,7 +68,9 @@
     <select id="f-store"></select>
 
     <label>予約日</label>
-    <input type="date" id="f-date">
+    <div id="date-btn" class="date-btn" onclick="toggleCal()">タップして日付を選択</div>
+    <input type="date" id="f-date" class="hidden">
+    <div id="calendar" class="cal hidden"></div>
     <p id="date-hint" class="hint-msg hidden"></p>
 
     <label>時間</label>
@@ -173,7 +188,9 @@ function storeRules_() {
     open: (s && s.reserve_open_time) || '10:00',
     close: (s && s.reserve_close_time) || '22:00',
     stop: !!(s && s.reserve_stop === 'stop'),
-    cap: (s && typeof s.reserve_capacity === 'number' && s.reserve_capacity > 0) ? s.reserve_capacity : 0
+    cap: (s && typeof s.reserve_capacity === 'number' && s.reserve_capacity > 0) ? s.reserve_capacity : 0,
+    closed: (s && s.closed_dates) || [],
+    full: (s && s.full_dates) || []
   };
 }
 
@@ -198,6 +215,102 @@ function updateDateHint() {
     return;
   }
   hint.classList.remove('hidden');
+}
+
+// ===== 日付カレンダー（予約できない日は黒く塗って選べなくする） =====
+var CAL_MONTH = null; // カレンダーに表示中の月（その月1日のDate）
+
+// 最短受付日（"YYYY-MM-DD"）
+function minDate_() { return earliestLocal_().slice(0, 10); }
+
+function p2_(n) { return (n < 10 ? '0' : '') + n; }
+
+// "2026-11-03" → 「11月3日（火）」
+function fmtDateJa_(s) {
+  var p = String(s).split('-');
+  return Number(p[1]) + '月' + Number(p[2]) + '日（' + weekdayJa_(new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]))) + '）';
+}
+
+// その日は予約できるか（true=黒く塗る）
+function isBlackout_(dstr) {
+  var r = storeRules_();
+  if (r.stop) return true;                                    // 店舗が予約受付停止中
+  if (dstr < minDate_()) return true;                         // 最短受付日より前
+  if ((r.closed || []).indexOf(dstr) !== -1) return true;     // 店舗が指定した休業日
+  if (r.cap > 0 && (r.full || []).indexOf(dstr) !== -1) return true; // 満席の日
+  return false;
+}
+
+// 日付ボタンの表示をそろえる
+function syncDateBtn_() {
+  var d = document.getElementById('f-date');
+  var b = document.getElementById('date-btn');
+  if (!b || !d) return;
+  if (d.value) { b.textContent = fmtDateJa_(d.value); b.classList.remove('empty'); }
+  else { b.textContent = 'タップして日付を選択'; b.classList.add('empty'); }
+}
+
+function toggleCal() {
+  var c = document.getElementById('calendar');
+  if (!c) return;
+  if (c.classList.contains('hidden')) {
+    if (!CAL_MONTH) CAL_MONTH = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    renderCal();
+    c.classList.remove('hidden');
+  } else {
+    c.classList.add('hidden');
+  }
+}
+
+function shiftMonth_(n) {
+  if (!CAL_MONTH) return;
+  CAL_MONTH = new Date(CAL_MONTH.getFullYear(), CAL_MONTH.getMonth() + n, 1);
+  renderCal();
+}
+
+// minMonth（"YYYY-MM"）のnヶ月後（"YYYY-MM"）
+function addMonthsStr_(ym, n) {
+  var d = new Date(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)) - 1 + n, 1);
+  return d.getFullYear() + '-' + p2_(d.getMonth() + 1);
+}
+
+// カレンダーを描き直す
+function renderCal() {
+  var c = document.getElementById('calendar');
+  if (!c || !CAL_MONTH) return;
+  var minMonth = minDate_().slice(0, 7);
+  var thisY = CAL_MONTH.getFullYear(), thisM = CAL_MONTH.getMonth();
+  var prevD = new Date(thisY, thisM - 1, 1), nextD = new Date(thisY, thisM + 1, 1);
+  var prevStr = prevD.getFullYear() + '-' + p2_(prevD.getMonth() + 1);
+  var nextStr = nextD.getFullYear() + '-' + p2_(nextD.getMonth() + 1);
+  var html = '<div class="cal-head">'
+    + '<button type="button" class="cal-nav" onclick="shiftMonth_(-1)"' + (prevStr < minMonth ? ' disabled' : '') + '>前へ</button>'
+    + '<span class="cal-title">' + (thisM + 1) + '月</span>'
+    + '<button type="button" class="cal-nav" onclick="shiftMonth_(1)"' + (nextStr > addMonthsStr_(minMonth, 2) ? ' disabled' : '') + '>次へ</button>'
+    + '</div>';
+  html += '<div class="cal-grid">';
+  ['日', '月', '火', '水', '木', '金', '土'].forEach(function (w) { html += '<div class="cal-dow">' + w + '</div>'; });
+  var startDow = new Date(thisY, thisM, 1).getDay();
+  for (var i = 0; i < startDow; i++) html += '<div></div>';
+  var daysInMonth = new Date(thisY, thisM + 1, 0).getDate();
+  var cur = val('f-date');
+  for (var day = 1; day <= daysInMonth; day++) {
+    var dstr = thisY + '-' + p2_(thisM + 1) + '-' + p2_(day);
+    if (isBlackout_(dstr)) {
+      html += '<div class="cal-day off">' + day + '</div>';
+    } else {
+      html += '<div class="cal-day' + (dstr === cur ? ' sel' : '') + '" onclick="pickDate_(\'' + dstr + '\')">' + day + '</div>';
+    }
+  }
+  html += '</div>';
+  c.innerHTML = html;
+}
+
+function pickDate_(dstr) {
+  document.getElementById('f-date').value = dstr;
+  syncDateBtn_();
+  toggleCal();
+  buildTimes();
 }
 
 // 受付ルールで最も早い日時（"yyyy-MM-dd HH:mm"・端末の日本時間）
@@ -256,20 +369,22 @@ function buildParty() {
   }
 }
 
-// 予約日の初期値・下限を受付ルールに合わせる（日本時間）。日付を変えたら時間の選択肢も作り直す
+// 予約日の初期値・下限を受付ルールに合わせる（日本時間）。店舗を変えたらやり直す
 function applyDateMin() {
   var d = document.getElementById('f-date');
-  var min = earliestLocal_().slice(0, 10);
+  var min = minDate_();
   d.min = min;
-  if (d.value && d.value < min) d.value = min;
+  if (d.value && (d.value < min || isBlackout_(d.value))) d.value = min;
+  syncDateBtn_();
 }
 
 function setMinDate() {
   var d = document.getElementById('f-date');
-  d.min = earliestLocal_().slice(0, 10);
+  d.min = minDate_();
   d.value = d.min;
+  syncDateBtn_();
   buildTimes();
-  d.addEventListener('change', buildTimes);
+  d.addEventListener('change', function () { syncDateBtn_(); buildTimes(); });
   document.getElementById('f-store').addEventListener('change', function () {
     applyDateMin();
     buildTimes();
@@ -338,6 +453,7 @@ function submitReservation() {
   if ((input.date + ' ' + input.time) <= earliest) { fail('ご予約は ' + earliest + ' 以降の日時でお願いいたします。'); return; }
 
   if (storeRules_().stop) { fail('ただいま予約を受け付けておりません。店舗までご連絡ください。'); return; }
+  if ((storeRules_().closed || []).indexOf(input.date) !== -1) { fail('ご指定の日は休業日です。別の日程でお願いいたします。'); return; }
 
   submitting_ = true;
   var btn = document.getElementById('btn');
