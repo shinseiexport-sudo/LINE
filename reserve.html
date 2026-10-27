@@ -190,7 +190,8 @@ function storeRules_() {
     stop: !!(s && s.reserve_stop === 'stop'),
     cap: (s && typeof s.reserve_capacity === 'number' && s.reserve_capacity > 0) ? s.reserve_capacity : 0,
     closed: (s && s.closed_dates) || [],
-    full: (s && s.full_dates) || []
+    full: (s && s.full_dates) || [],
+    wd: (s && s.closed_weekdays) || []
   };
 }
 
@@ -238,6 +239,7 @@ function isBlackout_(dstr) {
   if (dstr < minDate_()) return true;                         // 最短受付日より前
   if ((r.closed || []).indexOf(dstr) !== -1) return true;     // 店舗が指定した休業日
   if (r.cap > 0 && (r.full || []).indexOf(dstr) !== -1) return true; // 満席の日
+  if ((r.wd || []).indexOf(new Date(Number(dstr.slice(0, 4)), Number(dstr.slice(5, 7)) - 1, Number(dstr.slice(8, 10))).getDay()) !== -1) return true; // 定休日（曜日）
   return false;
 }
 
@@ -454,6 +456,8 @@ function submitReservation() {
 
   if (storeRules_().stop) { fail('ただいま予約を受け付けておりません。店舗までご連絡ください。'); return; }
   if ((storeRules_().closed || []).indexOf(input.date) !== -1) { fail('ご指定の日は休業日です。別の日程でお願いいたします。'); return; }
+  var wdSel = new Date(Number(input.date.slice(0, 4)), Number(input.date.slice(5, 7)) - 1, Number(input.date.slice(8, 10))).getDay();
+  if ((storeRules_().wd || []).indexOf(wdSel) !== -1) { fail('ご指定の日は定休日です。別の日程でお願いいたします。'); return; }
 
   submitting_ = true;
   var btn = document.getElementById('btn');
