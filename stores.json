@@ -2,15 +2,15 @@
   "stores": [
     {
       "store_id": "ST0001",
-      "store_name": "A?"
+      "store_name": "A店"
     },
     {
       "store_id": "ST0002",
-      "store_name": "B?"
+      "store_name": "B店"
     },
     {
       "store_id": "ST0003",
-      "store_name": "C?"
+      "store_name": "C店"
     }
   ]
 }
