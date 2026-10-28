@@ -1,0 +1,12 @@
+{
+  "stores": [
+    {
+      "store_id": "ST0001",
+      "store_name": "A?"
+    },
+    {
+      "store_id": "ST0002",
+      "store_name": "B?"
+    }
+  ]
+}
