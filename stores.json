@@ -7,6 +7,10 @@
     {
       "store_id": "ST0002",
       "store_name": "B?"
+    },
+    {
+      "store_id": "ST0003",
+      "store_name": "C?"
     }
   ]
 }
