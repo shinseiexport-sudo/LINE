@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>アンケート</title>
+<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'Hiragino Sans', 'Noto Sans JP', sans-serif; background: #f4f2ee; color: #2a2622; padding: 16px 12px 40px; }
+  .wrap { max-width: 480px; margin: 0 auto; }
+  .hero { background: #3fa15a; border-radius: 16px; padding: 22px 18px; text-align: center; color: #fff; margin-bottom: 14px; }
+  .hero h1 { font-size: 20px; letter-spacing: 1px; }
+  .hero p { font-size: 12px; margin-top: 6px; opacity: .92; }
+  .card { background: #fff; border-radius: 14px; padding: 18px 16px; box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 14px; }
+  label { display: block; font-size: 13px; font-weight: bold; margin: 16px 0 6px; }
+  .choices { display: flex; flex-wrap: wrap; gap: 8px; }
+  .choice { position: relative; }
+  .choice input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .choice span { display: inline-block; padding: 10px 14px; font-size: 14px; border: 1.5px solid #ddd6cc; border-radius: 10px; background: #fff; color: #2a2622; cursor: pointer; }
+  .choice input:checked + span { border-color: #3fa15a; background: #eaf6ee; color: #23643a; font-weight: bold; }
+  input[type="date"] { width: 100%; padding: 12px; font-size: 16px; border: 1px solid #ddd6cc; border-radius: 10px; background: #fff; color: #2a2622; }
+  .btn { width: 100%; margin-top: 22px; padding: 15px; font-size: 16px; font-weight: bold; color: #fff; background: #3fa15a; border: 0; border-radius: 12px; cursor: pointer; }
+  .btn:disabled { background: #cbc4b8; cursor: not-allowed; }
+  .btn-add { display: block; width: 100%; margin-top: 16px; padding: 15px; font-size: 16px; font-weight: bold; color: #fff; background: #06c755; border: 0; border-radius: 12px; cursor: pointer; text-align: center; text-decoration: none; }
+  .msg { margin-top: 12px; font-size: 13px; color: #c0392b; text-align: center; }
+  .hidden { display: none; }
+  .center { text-align: center; font-size: 14px; color: #7a736a; line-height: 1.8; }
+  .done-title { font-size: 19px; font-weight: bold; color: #2a7a3d; text-align: center; margin-bottom: 10px; }
+  .note { font-size: 11px; color: #9a938a; margin-top: 12px; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <h1>アンケートご協力のお願い</h1>
+    <p>ご回答いただいた方にはお店からの特典をご用意しています</p>
+  </div>
+
+  <div id="form-card" class="card">
+    <label>1. よくご利用いただく（ご予定の）お店</label>
+    <div id="store-radios" class="choices"></div>
+
+    <label for="f-birthday">2. お誕生日（誕生日の特典を差し上げます）</label>
+    <input type="date" id="f-birthday">
+
+    <label>3. 性別（ご案内の参考にさせていただきます）</label>
+    <div id="gender-radios" class="choices">
+      <label class="choice"><input type="radio" name="gender" value="male"><span>男性</span></label>
+      <label class="choice"><input type="radio" name="gender" value="female"><span>女性</span></label>
+      <label class="choice"><input type="radio" name="gender" value="na" checked><span>答えない</span></label>
+    </div>
+
+    <button id="btn" class="btn" onclick="submitSurvey()">アンケートを送信</button>
+    <div id="msg" class="msg hidden"></div>
+    <div id="cmsg" class="msg hidden"></div>
+    <p class="note">※ 入力いただいた情報は、お店からの特典・ご案内のためだけに使用します。それ以外の目的には使いません。</p>
+  </div>
+
+  <div id="done-card" class="card hidden">
+    <div class="done-title">ご回答ありがとうございました！</div>
+    <p class="center" id="done-text">お店からの特典・ご案内をお楽しみに。</p>
+    <a id="add-friend-btn" class="btn-add hidden" target="_blank" rel="noopener">友だち追加をすませる</a>
+    <p id="add-note" class="note hidden">上のボタンから友だち追加をすると、お店からのお得な情報が届きます。</p>
+  </div>
+</div>
+
+<script>
+// GitHub Pages 版アンケート（GASのSurvey.htmlの静的版。店舗一覧・送信キーはAPIから取得）
+var LIFF_ID = '2012203822-kP4fORnz';
+var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxKLdgvye_g34TXQFopTr-S6E5FaFfGPmXCmSxoiXJqSxeaEC7akE0L85vmJdJFPY0KsA/exec';
+var STORES = [];
+var SURVEY_KEY = '';
+var ADD_URL = '';
+var STORE_PARAM = '';
+
+var profile_ = null;
+var friendFlag_ = true;
+var submitting_ = false;
+var initOk_ = false;
+var inClient_ = false;
+
+function val(id) { return document.getElementById(id).value || ''; }
+function qs(name) {
+  var m = new RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+  return m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : '';
+}
+function showMsg(m) {
+  var el = document.getElementById('cmsg');
+  el.textContent = m;
+  el.classList.remove('hidden');
+}
+function fail(m) {
+  var msg = document.getElementById('msg');
+  msg.textContent = m;
+  msg.classList.remove('hidden');
+  var btn = document.getElementById('btn');
+  btn.disabled = false;
+  btn.textContent = 'アンケートを送信';
+  submitting_ = false;
+}
+function retriedOnce_() {
+  try { return window.sessionStorage.getItem('survey_retried') === '1'; } catch (e) { return false; }
+}
+function markRetried_() {
+  try { window.sessionStorage.setItem('survey_retried', '1'); } catch (e) {}
+}
+
+function buildStores() {
+  var box = document.getElementById('store-radios');
+  box.innerHTML = '';
+  STORES.forEach(function (s, i) {
+    var label = document.createElement('label');
+    label.className = 'choice';
+    var input = document.createElement('input');
+    input.type = 'radio';
+    input.name = 'store';
+    input.value = s.store_id;
+    if ((STORE_PARAM && STORE_PARAM === s.store_id) || (!STORE_PARAM && i === 0)) input.checked = true;
+    var span = document.createElement('span');
+    span.textContent = s.store_name;
+    label.appendChild(input);
+    label.appendChild(span);
+    box.appendChild(label);
+  });
+}
+
+// 起動①: 店舗一覧・送信キー・友だち追加URLをGASから取得して店の選択肢を作る
+fetch(EXEC_URL + '?page=api&act=surveyStores')
+  .then(function (res) { return res.json(); })
+  .then(function (data) {
+    if (!data || !data.ok || !data.stores || !data.stores.length) throw new Error('no stores');
+    STORES = data.stores;
+    SURVEY_KEY = data.survey_key || '';
+    ADD_URL = data.add_url || '';
+    STORE_PARAM = qs('store');
+    buildStores();
+  })
+  .catch(function () {
+    showMsg('店舗情報の読み込みに失敗しました。電波の良い場所でもう一度QRを読み取ってください。');
+  });
+
+// 起動②: LINEとの接続（プロフィール取得）。失敗しても入力は続けられる
+if (typeof liff === 'undefined') {
+  showMsg('LINEとの接続部の読み込みに失敗しました。電波の良い場所でもう一度QRを読み取ってください。');
+} else {
+  liff.init({ liffId: LIFF_ID }).then(function () {
+    initOk_ = true;
+    if (!liff.isInClient()) return null;
+    inClient_ = true;
+    return liff.getProfile().then(function (p) { profile_ = p; }).catch(function (e) {
+      try {
+        var tk = liff.getDecodedIDToken();
+        if (tk && tk.sub) { profile_ = { userId: tk.sub, displayName: tk.name || '' }; return null; }
+      } catch (e2) { /* 次へ */ }
+      if (!retriedOnce_()) { markRetried_(); liff.login(); return null; }
+      showMsg('LINEとの接続に失敗しました。LINEアプリのカメラでQRを読み直してください。（' + e + '）');
+      return null;
+    }).then(function () {
+      return liff.getFriendship().then(function (f) { friendFlag_ = !!(f && f.friendFlag); }).catch(function () { return null; });
+    });
+  }).catch(function (e) {
+    showMsg('LINEとの接続に失敗しました。LINEアプリのカメラでQRを読み直してください。（' + e + '）');
+  });
+}
+
+// 8秒たっても何も表示がない場合のための表示（固まり検知）
+setTimeout(function () {
+  if (profile_) return;
+  var m = document.getElementById('msg');
+  var c = document.getElementById('cmsg');
+  if (m.classList.contains('hidden') && c.classList.contains('hidden')) {
+    showMsg('読み込みに時間がかかっています。もう一度QRを読み直してください。');
+  }
+}, 8000);
+
+function submitSurvey() {
+  if (submitting_) return;
+  var storeEl = document.querySelector('input[name="store"]:checked');
+  var genderEl = document.querySelector('input[name="gender"]:checked');
+  var birthday = val('f-birthday');
+
+  if (!SURVEY_KEY) { fail('準備が完了していません。もう一度QRを読み直してください。'); return; }
+  if (!profile_ || !profile_.userId) { fail('LINEの情報を取得できませんでした。もう一度QRを読み直してください。'); return; }
+  if (!storeEl) { fail('お店を選択してください。'); return; }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(birthday)) { fail('お誕生日をご選択ください。'); return; }
+  if (!genderEl) { fail('性別をご選択ください。'); return; }
+
+  submitting_ = true;
+  var btn = document.getElementById('btn');
+  btn.disabled = true;
+  btn.textContent = '送信中...';
+  document.getElementById('msg').classList.add('hidden');
+
+  var input = {
+    key: SURVEY_KEY,
+    lineUserId: String(profile_.userId || ''),
+    lineName: String(profile_.displayName || ''),
+    storeId: storeEl.value,
+    birthday: birthday,
+    gender: genderEl.value
+  };
+
+  // GETで送信します（予約フォームと同じ・LINE内ブラウザで確実に動く方式）
+  fetch(EXEC_URL + '?page=api&act=survey&d=' + encodeURIComponent(JSON.stringify(input)))
+    .then(function (res) { return res.json(); })
+    .then(function (data) {
+      if (!data || !data.ok) {
+        throw new Error(data && data.message ? data.message : '送信に失敗しました。');
+      }
+      document.getElementById('form-card').classList.add('hidden');
+      var done = document.getElementById('done-card');
+      done.classList.remove('hidden');
+      // まだ友だちでない場合は、追加ボタンを出す
+      if (!friendFlag_ && ADD_URL) {
+        var a = document.getElementById('add-friend-btn');
+        a.href = ADD_URL;
+        a.classList.remove('hidden');
+        document.getElementById('add-note').classList.remove('hidden');
+      }
+    })
+    .catch(function (err) {
+      fail(err && err.message ? err.message : '送信に失敗しました。もう一度お試しください。');
+    });
+}
+</script>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092" integrity="sha512-UKNk8GbxkABxKcXYuLkO16EleLGUkcvJWtpSNmExE0Too3ZaFAxTscNWEc1OdAv5/BikHawapSCaiD2XCmp+Bw==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","spa":2}' crossorigin="anonymous"></script>
+</body>
+</html>
