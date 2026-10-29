@@ -39,6 +39,7 @@
   .mdl-text { font-size: 14px; color: #d63031; font-weight: bold; line-height: 1.6; margin-bottom: 16px; white-space: pre-line; }
   .mdl-btns { display: flex; gap: 8px; }
   .mdl-btns button { flex: 1; padding: 13px; font-size: 15px; font-weight: bold; border: 0; border-radius: 12px; cursor: pointer; }
+  .mdl-bg.hidden { display: none; } /* 非表示を確実に効かせる */
   .mdl-no { background: #e8e4dc; color: #2a2622; }
   .mdl-yes { background: #3fa15a; color: #fff; }
 </style>
@@ -159,6 +160,15 @@ function loadHome() {
         avail.appendChild(div);
       });
     }
+    // メッセージから開いた場合：そのクーポンの確認ポップアップをすぐ出す（やめる→メッセージ画面に戻る）
+    if (!autoAsked_) {
+      autoAsked_ = true;
+      var cpLink = linkCouponId_();
+      if (cpLink) {
+        var hit = d.mine.filter(function (it) { return String(it.coupon.coupon_id) === cpLink && !it.block; })[0];
+        if (hit) showCoupon(hit.cc_id, closeToTalk_);
+      }
+    }
     // 使い終わったクーポン
     if (!d.used.length) { $('used-block').classList.add('hidden'); }
     else {
@@ -174,7 +184,7 @@ function loadHome() {
 }
 
 // 確認・お知らせ用のポップアップ（confirm/alertだとURLが上に出るため自作）
-function popup_(title, text, okLabel, cancelLabel, onOk) {
+function popup_(title, text, okLabel, cancelLabel, onOk, onCancel) {
   $('mdl-title').textContent = title;
   $('mdl-text').textContent = text || '';
   $('mdl-yes').textContent = okLabel || 'OK';
@@ -182,13 +192,28 @@ function popup_(title, text, okLabel, cancelLabel, onOk) {
   $('mdl-no').style.display = cancelLabel ? '' : 'none';
   $('mdl').classList.remove('hidden');
   $('mdl-yes').onclick = function () { $('mdl').classList.add('hidden'); if (onOk) onOk(); };
-  $('mdl-no').onclick = function () { $('mdl').classList.add('hidden'); };
+  $('mdl-no').onclick = function () { $('mdl').classList.add('hidden'); if (onCancel) onCancel(); };
 }
 var showing_ = false; // 二度押し防止
-function showCoupon(ccId) {
+function showCoupon(ccId, onCancel) {
   if (showing_) return;
-  popup_('お会計の際にクーポンをご提示ください', 'クーポンを表示すると使用済になりますのでご注意下さい。', '表示する', 'やめる', function () { doShowCoupon_(ccId); });
+  popup_('お会計の際にクーポンをご提示ください', 'クーポンを表示すると使用済になりますのでご注意下さい。', '表示する', 'やめる', function () { doShowCoupon_(ccId); }, onCancel);
 }
+// メッセージ画面に戻る（LINEの中ならページを閉じる）
+function closeToTalk_() {
+  try { if (typeof liff !== 'undefined' && liff.isInClient()) { liff.closeWindow(); return; } } catch (e) {}
+  // LINEの外で開いた場合は閉じられないので一覧のまま
+}
+// メッセージのクーポンカードから開いたときの「?cp=CP0001」を取り出す
+function linkCouponId_() {
+  try {
+    var q = new URLSearchParams(location.search);
+    var cp = q.get('cp');
+    if (!cp && q.get('liff.state')) cp = new URLSearchParams(q.get('liff.state').replace(/^[^?]*\?/, '')).get('cp');
+    return cp || '';
+  } catch (e) { return ''; }
+}
+var autoAsked_ = false; // 自動ポップアップは開いた直後の1回だけ
 function doShowCoupon_(ccId) {
   showing_ = true;
   api('couponShow', { key: API_KEY, lineUserId: profile_.userId, ccId: ccId }, function (d) {
