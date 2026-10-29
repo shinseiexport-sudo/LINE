@@ -39,12 +39,12 @@
 <div class="wrap">
   <div class="hero">
     <h1>クーポン</h1>
-    <p>お会計のときに店員さんにご提示ください</p>
+    <p>お会計の際にクーポンをご提示ください</p>
   </div>
 
   <div class="warn">
-    <div class="warn-big">⚠ クーポンを見せるのは、<br>お会計のときだけ！</div>
-    <div class="warn-small">見せた時点で使い切りになります。ご注意ください。</div>
+    <div class="warn-big">⚠ お会計の際に<br>クーポンをご提示ください</div>
+    <div class="warn-small">クーポンを表示すると使用済になりますのでご注意下さい。</div>
   </div>
 
   <div id="cmsg" class="msg hidden"></div>
@@ -136,7 +136,9 @@ function loadHome() {
     if (!d.mine.length) mine.innerHTML = '<p class="empty">使えるクーポンはまだありません。下の「受け取れるクーポン」から受け取れます。</p>';
     d.mine.forEach(function (item) {
       var div = document.createElement('div');
-      div.innerHTML = ticketCard(item.coupon, '<button type="button" class="btn" data-cc="' + esc(item.cc_id) + '">クーポンを見せる</button>');
+      div.innerHTML = item.block
+        ? ticketCard(item.coupon, '<button type="button" class="btn" disabled>' + (item.block.indexOf('過ぎて') >= 0 ? '期限切れです' : 'まだ使えません') + '</button><div class="t-period" style="color:#d63031;margin:6px 0 0;">' + esc(item.block) + '</div>')
+        : ticketCard(item.coupon, '<button type="button" class="btn" data-cc="' + esc(item.cc_id) + '">クーポンを表示する</button>');
       mine.appendChild(div);
     });
     // 受け取れるクーポン
@@ -164,9 +166,9 @@ function loadHome() {
 }
 
 function showCoupon(ccId) {
-  if (!confirm('見せるとこのクーポンは使い切りになります。\nお会計の時に店員さんに見せますか？')) return;
+  if (!confirm('お会計の際にクーポンをご提示ください。\nクーポンを表示すると使用済になりますのでご注意下さい。\n\nクーポンを表示しますか？')) return;
   api('couponShow', { key: API_KEY, lineUserId: profile_.userId, ccId: ccId }, function (d) {
-    if (!d || !d.ok) { showMsg((d && d.message) || 'エラーが発生しました。'); return; }
+    if (!d || !d.ok) { alert((d && d.message) || 'エラーが発生しました。'); loadHome(); return; }
     if (!d.coupon) { showMsg('クーポンの内容を読み込めませんでした。'); return; }
     $('show-ticket').innerHTML = ticketCard(d.coupon, '');
     $('list-area').classList.add('hidden');
@@ -253,6 +255,5 @@ setTimeout(function () {
   else showMsg('【D3】LINEとの接続は出来ていますが、プロフィールが取れていません');
 }, 8000);
 </script>
-<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092" integrity="sha512-UKNk8GbxkABxKcXYuLkO16EleLGUkcvJWtpSNmExE0Too3ZaFAxTscNWEc1OdAv5/BikHawapSCaiD2XCmp+Bw==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","spa":2}' crossorigin="anonymous"></script>
 </body>
 </html>
