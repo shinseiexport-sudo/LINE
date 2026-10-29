@@ -33,6 +33,14 @@
   .show-banner { background: #d63031; color: #fff; font-size: 20px; font-weight: bold; text-align: center; border-radius: 14px; padding: 18px 12px; margin-bottom: 12px; }
   .used-note { text-align: center; font-size: 13px; color: #7a736a; margin: 10px 0; }
   .btn2 { width: 100%; margin-top: 10px; padding: 13px; font-size: 15px; font-weight: bold; color: #2a2622; background: #e8e4dc; border: 0; border-radius: 12px; cursor: pointer; }
+  .mdl-bg { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 50; }
+  .mdl { background: #fff; border-radius: 16px; width: 100%; max-width: 360px; padding: 20px 16px 16px; text-align: center; }
+  .mdl-title { font-size: 17px; font-weight: bold; color: #2a2622; margin-bottom: 10px; line-height: 1.5; }
+  .mdl-text { font-size: 14px; color: #d63031; font-weight: bold; line-height: 1.6; margin-bottom: 16px; white-space: pre-line; }
+  .mdl-btns { display: flex; gap: 8px; }
+  .mdl-btns button { flex: 1; padding: 13px; font-size: 15px; font-weight: bold; border: 0; border-radius: 12px; cursor: pointer; }
+  .mdl-no { background: #e8e4dc; color: #2a2622; }
+  .mdl-yes { background: #3fa15a; color: #fff; }
 </style>
 </head>
 <body>
@@ -55,15 +63,15 @@
     <h2 class="sec" id="sec-avail">受け取れるクーポン</h2>
     <div id="avail"></div>
     <div id="used-block" class="hidden">
-      <h2 class="sec">使用済クーポン</h2>
+      <h2 class="sec">使い終わったクーポン</h2>
       <div id="used"></div>
     </div>
   </div>
 
   <div id="show-area" class="hidden">
-    <div class="show-banner">スタッフにご提示下さい</div>
+    <div class="show-banner">店員さんに見せてください</div>
     <div id="show-ticket"></div>
-    <div class="used-note">このクーポンは使用済みです。</div>
+    <div class="used-note">このクーポンは使用済みになりました。</div>
     <button type="button" class="btn2" onclick="backToList()">とじる</button>
   </div>
 </div>
@@ -118,7 +126,7 @@ function api(act, data, cb) {
   fetch(EXEC_URL + '?page=api&act=' + act + '&d=' + encodeURIComponent(JSON.stringify(data)))
     .then(function (r) { return r.json(); })
     .then(function (d) { cb(d); })
-    .catch(function (e) { showMsg('通信に失敗しました。もう一度お試しください。（' + e + '）'); });
+    .catch(function (e) { showing_ = false; showMsg('通信に失敗しました。もう一度お試しください。（' + e + '）'); });
 }
 
 function loadHome() {
@@ -165,10 +173,28 @@ function loadHome() {
   });
 }
 
+// 確認・お知らせ用のポップアップ（confirm/alertだとURLが上に出るため自作）
+function popup_(title, text, okLabel, cancelLabel, onOk) {
+  $('mdl-title').textContent = title;
+  $('mdl-text').textContent = text || '';
+  $('mdl-yes').textContent = okLabel || 'OK';
+  $('mdl-no').textContent = cancelLabel || '';
+  $('mdl-no').style.display = cancelLabel ? '' : 'none';
+  $('mdl').classList.remove('hidden');
+  $('mdl-yes').onclick = function () { $('mdl').classList.add('hidden'); if (onOk) onOk(); };
+  $('mdl-no').onclick = function () { $('mdl').classList.add('hidden'); };
+}
+var showing_ = false; // 二度押し防止
 function showCoupon(ccId) {
-  if (!confirm('お会計の際にクーポンをご提示ください。\nクーポンを表示すると使用済になりますのでご注意下さい。\n\nクーポンを表示しますか？')) return;
+  if (showing_) return;
+  popup_('お会計の際にクーポンをご提示ください', 'クーポンを表示すると使用済になりますのでご注意下さい。', '表示する', 'やめる', function () { doShowCoupon_(ccId); });
+}
+function doShowCoupon_(ccId) {
+  showing_ = true;
   api('couponShow', { key: API_KEY, lineUserId: profile_.userId, ccId: ccId }, function (d) {
-    if (!d || !d.ok) { alert((d && d.message) || 'エラーが発生しました。'); loadHome(); return; }
+    showing_ = false;
+    if (!d || !d.ok) { popup_('クーポンを表示できません', (d && d.message) || 'エラーが発生しました。', 'OK', '', loadHome); return; }
+    if (!d.used_now) { popup_('このクーポンは使用済みです', 'すでに一度表示されたため、もう使えません（お一人様1回まで）。', 'OK', '', loadHome); return; }
     if (!d.coupon) { showMsg('クーポンの内容を読み込めませんでした。'); return; }
     $('show-ticket').innerHTML = ticketCard(d.coupon, '');
     $('list-area').classList.add('hidden');
@@ -179,7 +205,7 @@ function showCoupon(ccId) {
 
 function receiveCoupon(cpId) {
   api('couponGet', { key: API_KEY, lineUserId: profile_.userId, couponId: cpId }, function (d) {
-    if (!d || !d.ok) { showMsg((d && d.message) || '受け取れませんでした。'); return; }
+    if (!d || !d.ok) { popup_('受け取れませんでした', (d && d.message) || '', 'OK', '', loadHome); return; }
     loadHome();
   });
 }
@@ -255,5 +281,15 @@ setTimeout(function () {
   else showMsg('【D3】LINEとの接続は出来ていますが、プロフィールが取れていません');
 }, 8000);
 </script>
+<div id="mdl" class="mdl-bg hidden">
+  <div class="mdl">
+    <div class="mdl-title" id="mdl-title"></div>
+    <div class="mdl-text" id="mdl-text"></div>
+    <div class="mdl-btns">
+      <button type="button" class="mdl-no" id="mdl-no">やめる</button>
+      <button type="button" class="mdl-yes" id="mdl-yes">表示する</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
