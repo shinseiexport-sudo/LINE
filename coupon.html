@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>クーポン</title>
+<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'Hiragino Sans', 'Noto Sans JP', sans-serif; background: #f4f2ee; color: #2a2622; padding: 16px 12px 40px; }
+  .wrap { max-width: 480px; margin: 0 auto; }
+  .hero { background: #3fa15a; border-radius: 16px; padding: 20px 16px; text-align: center; color: #fff; margin-bottom: 12px; }
+  .hero h1 { font-size: 20px; letter-spacing: 1px; }
+  .hero p { font-size: 12px; margin-top: 6px; opacity: .92; }
+  .warn { background: #fff; border: 2px solid #d63031; border-radius: 14px; padding: 14px 12px; text-align: center; margin-bottom: 14px; }
+  .warn-big { color: #d63031; font-size: 18px; font-weight: bold; line-height: 1.4; }
+  .warn-small { color: #d63031; font-size: 12px; margin-top: 6px; font-weight: bold; }
+  .sec { font-size: 15px; font-weight: bold; margin: 18px 0 8px; color: #2a2622; }
+  .ticket { background: #fff; border: 2px dashed #3fa15a; border-radius: 14px; padding: 14px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  .ticket img { width: 100%; border-radius: 10px; margin-bottom: 10px; display: block; }
+  .t-name { font-size: 14px; font-weight: bold; }
+  .t-benefit { font-size: 20px; font-weight: bold; color: #d63031; margin: 6px 0; line-height: 1.4; }
+  .t-period { font-size: 12px; color: #7a736a; margin-bottom: 10px; }
+  .btn { width: 100%; padding: 14px; font-size: 16px; font-weight: bold; color: #fff; background: #3fa15a; border: 0; border-radius: 12px; cursor: pointer; }
+  .btn:disabled { background: #cbc4b8; cursor: not-allowed; }
+  .get-btn { width: 100%; padding: 12px; font-size: 15px; font-weight: bold; color: #fff; background: #06c755; border: 0; border-radius: 10px; cursor: pointer; }
+  .used-row { background: #fff; border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; font-size: 13px; color: #7a736a; display: flex; justify-content: space-between; align-items: center; }
+  .used-badge { color: #fff; background: #cbc4b8; border-radius: 8px; padding: 2px 8px; font-size: 11px; }
+  .msg { margin: 10px 0; font-size: 13px; color: #c0392b; text-align: center; }
+  .hidden { display: none; }
+  .center { text-align: center; font-size: 14px; color: #7a736a; line-height: 1.8; }
+  .empty { font-size: 13px; color: #9a938a; }
+  .show-banner { background: #d63031; color: #fff; font-size: 20px; font-weight: bold; text-align: center; border-radius: 14px; padding: 18px 12px; margin-bottom: 12px; }
+  .used-note { text-align: center; font-size: 13px; color: #7a736a; margin: 10px 0; }
+  .btn2 { width: 100%; margin-top: 10px; padding: 13px; font-size: 15px; font-weight: bold; color: #2a2622; background: #e8e4dc; border: 0; border-radius: 12px; cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <h1>クーポン</h1>
+    <p>お会計のときに店員さんにご提示ください</p>
+  </div>
+
+  <div class="warn">
+    <div class="warn-big">⚠ クーポンを見せるのは、<br>お会計のときだけ！</div>
+    <div class="warn-small">見せた時点で使い切りになります。ご注意ください。</div>
+  </div>
+
+  <div id="cmsg" class="msg hidden"></div>
+
+  <div id="list-area">
+    <h2 class="sec" id="sec-mine">使えるクーポン</h2>
+    <div id="mine"></div>
+    <h2 class="sec" id="sec-avail">受け取れるクーポン</h2>
+    <div id="avail"></div>
+    <div id="used-block" class="hidden">
+      <h2 class="sec">使い終わったクーポン</h2>
+      <div id="used"></div>
+    </div>
+  </div>
+
+  <div id="show-area" class="hidden">
+    <div class="show-banner">店員さんに見せてください</div>
+    <div id="show-ticket"></div>
+    <div class="used-note">このクーポンは使用済みになりました。</div>
+    <button type="button" class="btn2" onclick="backToList()">とじる</button>
+  </div>
+</div>
+
+<script>
+// GitHub Pages版（LIFFのエンドポイントはこのページのURLにする）
+// LIFF IDはGASのスクリプトプロパティ LIFF_COUPON_ID から自動で読むので、このファイルは書き換え不要
+var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxKLdgvye_g34TXQFopTr-S6E5FaFfGPmXCmSxoiXJqSxeaEC7akE0L85vmJdJFPY0KsA/exec';
+var LIFF_ID = '';
+var API_KEY = '';
+
+var profile_ = null;
+var initOk_ = false, inClient_ = false;
+
+function $(id) { return document.getElementById(id); }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]; }); }
+function showMsg(m) { var el = $('cmsg'); el.textContent = m; el.classList.remove('hidden'); }
+
+function benefitText(c) {
+  if (c.benefit_type === 'discount') {
+    if (c.price_before > 0) {
+      var after = c.discount_yen > 0 ? (c.price_before - c.discount_yen) : Math.round(c.price_before * (100 - c.discount_percent) / 100);
+      after = Math.max(0, after);
+      return '¥' + c.price_before.toLocaleString('ja-JP') + ' → ¥' + after.toLocaleString('ja-JP') + '（' + (c.discount_yen > 0 ? '¥' + c.discount_yen.toLocaleString('ja-JP') + '引き' : c.discount_percent + '%引き') + '）';
+    }
+    return c.discount_yen > 0 ? '¥' + c.discount_yen.toLocaleString('ja-JP') + '引き' : c.discount_percent + '%引き';
+  }
+  var t = ({ free: '無料', cashback: 'キャッシュバック', present: 'プレゼント', other: '特典' })[c.benefit_type] || '特典';
+  return t + (c.notes ? '：' + c.notes : '');
+}
+function periodText(c) {
+  if (c.no_limit) return '期限なし';
+  var f = c.valid_from ? String(c.valid_from).slice(0, 10) : '';
+  var u = c.valid_until ? String(c.valid_until).slice(0, 10) : '';
+  if (f && u) return f + ' 〜 ' + u;
+  if (f) return f + ' から';
+  if (u) return u + ' まで';
+  return '';
+}
+function ticketHtml(c) {
+  return '<div class="t-name">' + esc(c.coupon_name) + '</div>' +
+    '<div class="t-benefit">' + esc(benefitText(c)) + '</div>' +
+    (c.notes && c.benefit_type === 'discount' ? '<div class="t-period">' + esc(c.notes) + '</div>' : '') +
+    '<div class="t-period">' + esc(periodText(c)) + '</div>';
+}
+function ticketCard(c, btnHtml) {
+  return '<div class="ticket">' +
+    (c.image_url ? '<img src="' + esc(c.image_url) + '" alt="" onerror="this.style.display=\'none\'">' : '') +
+    ticketHtml(c) + btnHtml + '</div>';
+}
+function api(act, data, cb) {
+  fetch(EXEC_URL + '?page=api&act=' + act + '&d=' + encodeURIComponent(JSON.stringify(data)))
+    .then(function (r) { return r.json(); })
+    .then(function (d) { cb(d); })
+    .catch(function (e) { showMsg('通信に失敗しました。もう一度お試しください。（' + e + '）'); });
+}
+
+function loadHome() {
+  api('couponHome', { key: API_KEY, lineUserId: profile_.userId }, function (d) {
+    if (!d || !d.ok) { showMsg((d && d.message) || '読み込みに失敗しました。'); return; }
+    var mine = $('mine'), avail = $('avail'), used = $('used');
+    mine.innerHTML = ''; avail.innerHTML = ''; used.innerHTML = '';
+    if (!d.registered) {
+      $('sec-avail').classList.add('hidden');
+      $('used-block').classList.add('hidden');
+      mine.innerHTML = '<p class="center">まずはアンケートにご回答ください。<br>回答後からクーポンが使えるようになります。</p>';
+      return;
+    }
+    // 使えるクーポン
+    if (!d.mine.length) mine.innerHTML = '<p class="empty">使えるクーポンはまだありません。下の「受け取れるクーポン」から受け取れます。</p>';
+    d.mine.forEach(function (item) {
+      var div = document.createElement('div');
+      div.innerHTML = ticketCard(item.coupon, '<button type="button" class="btn" data-cc="' + esc(item.cc_id) + '">クーポンを見せる</button>');
+      mine.appendChild(div);
+    });
+    // 受け取れるクーポン
+    if (!d.available.length) { $('sec-avail').classList.add('hidden'); }
+    else {
+      $('sec-avail').classList.remove('hidden');
+      d.available.forEach(function (c) {
+        var div = document.createElement('div');
+        div.innerHTML = ticketCard(c, '<button type="button" class="get-btn" data-cp="' + esc(c.coupon_id) + '">受け取る</button>');
+        avail.appendChild(div);
+      });
+    }
+    // 使い終わったクーポン
+    if (!d.used.length) { $('used-block').classList.add('hidden'); }
+    else {
+      $('used-block').classList.remove('hidden');
+      d.used.forEach(function (item) {
+        var div = document.createElement('div');
+        div.className = 'used-row';
+        div.innerHTML = '<span>' + esc(item.coupon.coupon_name) + '</span><span><span class="used-badge">使用済み</span> ' + esc(String(item.used_at || '').slice(0, 16)) + '</span>';
+        used.appendChild(div);
+      });
+    }
+  });
+}
+
+function showCoupon(ccId) {
+  if (!confirm('見せるとこのクーポンは使い切りになります。\nお会計の時に店員さんに見せますか？')) return;
+  api('couponShow', { key: API_KEY, lineUserId: profile_.userId, ccId: ccId }, function (d) {
+    if (!d || !d.ok) { showMsg((d && d.message) || 'エラーが発生しました。'); return; }
+    if (!d.coupon) { showMsg('クーポンの内容を読み込めませんでした。'); return; }
+    $('show-ticket').innerHTML = ticketCard(d.coupon, '');
+    $('list-area').classList.add('hidden');
+    $('show-area').classList.remove('hidden');
+    window.scrollTo(0, 0);
+  });
+}
+
+function receiveCoupon(cpId) {
+  api('couponGet', { key: API_KEY, lineUserId: profile_.userId, couponId: cpId }, function (d) {
+    if (!d || !d.ok) { showMsg((d && d.message) || '受け取れませんでした。'); return; }
+    loadHome();
+  });
+}
+
+function backToList() {
+  $('show-area').classList.add('hidden');
+  $('list-area').classList.remove('hidden');
+  loadHome();
+}
+
+// ボタンのクリック（作り直しても消えないように委譲で受ける）
+document.addEventListener('click', function (ev) {
+  var t = ev.target;
+  while (t && t !== document) {
+    if (t.hasAttribute && t.hasAttribute('data-cc')) { showCoupon(t.getAttribute('data-cc')); return; }
+    if (t.hasAttribute && t.hasAttribute('data-cp')) { receiveCoupon(t.getAttribute('data-cp')); return; }
+    t = t.parentNode;
+  }
+});
+
+// 起動: LINEと接続して本人を特定してからクーポンを読む（アンケートページと同じ方式）
+function retriedOnce_() { try { return window.sessionStorage.getItem('coupon_retried') === '1'; } catch (e) { return false; } }
+function markRetried_() { try { window.sessionStorage.setItem('coupon_retried', '1'); } catch (e) {} }
+
+function startLiff_() {
+  if (!LIFF_ID) {
+    showMsg('【準備中】クーポンページの公開設定がまだです。お店の担当者がLIFF ID（LIFF_COUPON_ID）を設定するまでお待ちください。');
+  } else if (typeof liff === 'undefined') {
+    showMsg('【A】LINEとの接続部の読み込みに失敗しました。電波の良い場所でもう一度開いてください。');
+  } else {
+    liff.init({ liffId: LIFF_ID }).then(function () {
+      initOk_ = true;
+      if (!liff.isInClient()) { inClient_ = false; return null; }
+      inClient_ = true;
+      return liff.getProfile().then(function (p) { profile_ = p; }).catch(function (e) {
+        try {
+          var tk = liff.getDecodedIDToken();
+          if (tk && tk.sub) { profile_ = { userId: tk.sub, displayName: tk.name || '' }; return null; }
+        } catch (e2) { /* 次へ */ }
+        if (!retriedOnce_()) { markRetried_(); liff.login(); return null; }
+        showMsg('【B】プロフィール取得に失敗しました。（' + e + '）');
+        return null;
+      }).then(function () {
+        if (profile_) loadHome();
+        return null;
+      });
+    }).catch(function (e) {
+      showMsg('【C】LINEとの接続に失敗しました。もう一度開き直してください。（' + e + '）');
+    });
+  }
+}
+
+// 起動: まずGASから設定（LIFF ID・送信キー）を読む → LINEと接続
+var cfgDone_ = false;
+fetch(EXEC_URL + '?page=api&act=couponConfig')
+  .then(function (r) { return r.json(); })
+  .then(function (d) {
+    cfgDone_ = true;
+    if (!d || !d.ok) { showMsg('【E】設定を読み込めませんでした。（' + ((d && d.message) || '') + '）'); return; }
+    LIFF_ID = d.liff_id || '';
+    API_KEY = d.key || '';
+    startLiff_();
+  })
+  .catch(function (e) { cfgDone_ = true; showMsg('【E】設定を読み込めませんでした。電波の良い場所でもう一度開いてください。（' + e + '）'); });
+
+setTimeout(function () {
+  if (profile_) return;
+  if (document.getElementById('cmsg').textContent.indexOf('【E】') === 0) return;
+  if (!cfgDone_) { showMsg('【D0】設定の読み込みが終わりません。電波の良い場所でもう一度開いてください。'); return; }
+  if (!LIFF_ID || document.getElementById('cmsg').textContent.indexOf('【準備中】') === 0) return;
+  if (!initOk_) showMsg('【D1】LINEとの接続が固まっています（init待ち）');
+  else if (!inClient_) showMsg('【D2】LINEの外として開かれています。LINEの中から開いてください。');
+  else showMsg('【D3】LINEとの接続は出来ていますが、プロフィールが取れていません');
+}, 8000);
+</script>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092" integrity="sha512-UKNk8GbxkABxKcXYuLkO16EleLGUkcvJWtpSNmExE0Too3ZaFAxTscNWEc1OdAv5/BikHawapSCaiD2XCmp+Bw==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","spa":2}' crossorigin="anonymous"></script>
+</body>
+</html>
