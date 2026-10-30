@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ポイント付与（スタッフ用）</title>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP', sans-serif; background: #23262d; color: #2a2622; padding: 14px 12px 40px; }
+  .wrap { max-width: 520px; margin: 0 auto; }
+  .bar { background: #3fa15a; border-radius: 14px; padding: 14px 16px; color: #fff; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+  .bar h1 { font-size: 16px; }
+  .bar small { font-size: 11px; opacity: .9; display: block; margin-top: 3px; }
+  .card { background: #fff; border-radius: 14px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 5px rgba(0,0,0,.25); }
+  label { display: block; font-size: 13px; font-weight: bold; margin: 10px 0 5px; }
+  input, select { width: 100%; padding: 12px; font-size: 16px; border: 1.5px solid #ddd6cc; border-radius: 10px; background: #fff; }
+  .btn { width: 100%; margin-top: 14px; padding: 15px; font-size: 16px; font-weight: bold; color: #fff; background: #3fa15a; border: 0; border-radius: 12px; cursor: pointer; }
+  .btn.gray { background: #6b7280; }
+  .btn.red { background: #c0392b; }
+  .btn:disabled { background: #cbc4b8; }
+  .hidden { display: none; }
+  #reader { border-radius: 12px; overflow: hidden; }
+  .msg { font-size: 13px; margin-top: 10px; color: #c0392b; }
+  .ok { color: #23643a; }
+  .chips { display: flex; gap: 8px; margin-top: 8px; }
+  .chip { flex: 1; padding: 10px 0; text-align: center; border: 1.5px solid #ddd6cc; border-radius: 10px; font-size: 13px; font-weight: bold; cursor: pointer; background: #f7f5f0; }
+  .scanname { font-size: 15px; font-weight: bold; margin-top: 8px; }
+  .res { text-align: center; }
+  .res .pt { font-size: 36px; font-weight: bold; color: #23643a; }
+  .res .bal { font-size: 14px; color: #7a736a; margin-top: 4px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { padding: 6px 3px; border-bottom: 1px solid #eee7dc; text-align: left; }
+  details { margin-top: 12px; font-size: 12px; color: #7a736a; }
+  details input { margin-top: 6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="bar">
+    <div><h1>⚡ ポイント付与</h1><small id="store-label">店舗未選択</small></div>
+    <button class="btn gray" style="width:auto;margin:0;padding:8px 12px;font-size:12px;" onclick="openSetup()">設定</button>
+  </div>
+
+  <div id="setup" class="card hidden">
+    <label>スタッフキー</label>
+    <input type="password" id="f-key" placeholder="お店から渡されたキー">
+    <label>自分のお店を選ぶ</label>
+    <select id="f-store"></select>
+    <button class="btn" onclick="saveSetup()">これで開始する</button>
+    <div class="msg" id="setup-msg"></div>
+  </div>
+
+  <div id="scan-area" class="card">
+    <div id="reader"></div>
+    <button class="btn" id="btn-scan" onclick="startScan()">📷 お客さまのQRを読み取る</button>
+    <button class="btn red hidden" id="btn-stop" onclick="stopScan()">読み取りをやめる</button>
+    <div class="msg" id="scan-msg"></div>
+    <details>
+      <summary>カメラが使えないとき（テスト用）</summary>
+      <label>お客さまID（Uで始まる33文字）を直接入力</label>
+      <input type="text" id="manual-uid" placeholder="U0123456789abcdef0123456789abcdef">
+      <button class="btn gray" onclick="useManual()">このIDを使う</button>
+    </details>
+  </div>
+
+  <div id="amount-area" class="card hidden">
+    <div class="scanname">✓ QRを読み取りました</div>
+    <label>ご利用金額（税抜）</label>
+    <input type="number" id="f-amount" inputmode="numeric" placeholder="1980" oninput="preview()">
+    <div class="chips">
+      <div class="chip" onclick="add(1000)">+1,000</div>
+      <div class="chip" onclick="add(2000)">+2,000</div>
+      <div class="chip" onclick="add(3000)">+3,000</div>
+      <div class="chip" onclick="add(5000)">+5,000</div>
+    </div>
+    <div class="msg ok" id="preview"></div>
+    <button class="btn" id="btn-grant" onclick="grant()">ポイントを付与する</button>
+    <button class="btn gray" onclick="resetFlow()">読み直す</button>
+  </div>
+
+  <div id="result-area" class="card hidden">
+    <div class="res">
+      <div style="font-size:14px;color:#7a736a;">付与しました</div>
+      <div class="scanname" id="r-name"></div>
+      <div class="pt" id="r-pt"></div>
+      <div class="bal" id="r-bal"></div>
+    </div>
+    <button class="btn" onclick="resetFlow()">次のお客さまへ</button>
+  </div>
+
+  <div class="card">
+    <label style="margin-top:0;">この端末の記録</label>
+    <table><tbody id="session"></tbody></table>
+    <div class="msg" id="session-empty">まだありません。</div>
+  </div>
+</div>
+
+<script>
+  var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxKLdgvye_g34TXQFopTr-S6E5FaFfGPmXCmSxoiXJqSxeaEC7akE0L85vmJdJFPY0KsA/exec';
+  var RATE = 100; // ポイントの計算レート（サーバー側 PointService.gs の PT_RATE_YEN と同じにしてください）
+  var qr = null, currentUid = '';
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s === null || s === undefined ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+  function api(data, cb) {
+    fetch(EXEC_URL + '?page=api&act=point&d=' + encodeURIComponent(JSON.stringify(data)))
+      .then(function (r) { return r.json(); }).then(cb)
+      .catch(function (e) { cb({ ok: false, message: '通信に失敗しました: ' + e }); });
+  }
+  window.addEventListener('load', function () {
+    api({ op: 'config' }, function (res) { if (res && res.ok) RATE = Number(res.rate || 100); setupStores(); });
+  });
+  function setupStores() {
+    fetch(EXEC_URL + '?page=api&act=stores').then(function (r) { return r.json(); }).then(function (res) {
+      var sel = $('f-store');
+      sel.innerHTML = '<option value="">選んでください</option>';
+      ((res && res.stores) || []).forEach(function (s) {
+        var o = document.createElement('option'); o.value = s.store_id; o.textContent = s.store_name; sel.appendChild(o);
+      });
+      var savedKey = localStorage.getItem('pt_staff_key'), savedStore = localStorage.getItem('pt_store_id');
+      if (savedStore) sel.value = savedStore;
+      if (savedKey && sel.value) { $('f-key').value = savedKey; saveSetup(true); }
+      else openSetup();
+    }).catch(function () { openSetup(); });
+  }
+  function openSetup() { $('setup').classList.remove('hidden'); }
+  function saveSetup(silent) {
+    var k = $('f-key').value.trim(), s = $('f-store').value;
+    if (!k || !s) { $('setup-msg').textContent = 'スタッフキーと店舗を選んでください。'; return; }
+    localStorage.setItem('pt_staff_key', k);
+    localStorage.setItem('pt_store_id', s);
+    var name = $('f-store').options[$('f-store').selectedIndex].textContent;
+    $('store-label').textContent = '店舗: ' + name;
+    $('setup').classList.add('hidden');
+    if (!silent) resetFlow();
+  }
+  function startScan() {
+    $('scan-msg').textContent = '';
+    qr = new Html5Qrcode('reader');
+    qr.start({ facingMode: 'environment' }, { fps: 10, qrbox: 240 }, function (text) {
+      var m = String(text).match(/U[0-9A-Fa-f]{32}/);
+      if (!m) return;
+      stopScan();
+      gotUid(m[0]);
+    }).then(function () {
+      $('btn-scan').classList.add('hidden');
+      $('btn-stop').classList.remove('hidden');
+    }).catch(function (e) {
+      $('scan-msg').textContent = 'カメラを開けませんでした（' + e + '）。ブラウザのカメラ許可を確認するか、下の「カメラが使えないとき」を使ってください。';
+    });
+  }
+  function stopScan() {
+    if (qr) { try { qr.stop(); } catch (e) {} qr = null; }
+    $('btn-scan').classList.remove('hidden');
+    $('btn-stop').classList.add('hidden');
+    $('reader').innerHTML = '';
+  }
+  function useManual() {
+    var v = $('manual-uid').value.trim();
+    var m = v.match(/U[0-9A-Fa-f]{32}/);
+    if (!m) { $('scan-msg').textContent = 'IDの形式が違います（Uで始まる33文字）。'; return; }
+    gotUid(m[0]);
+  }
+  function gotUid(uid) {
+    currentUid = uid;
+    $('scan-msg').textContent = '';
+    $('scan-area').classList.add('hidden');
+    $('amount-area').classList.remove('hidden');
+    $('f-amount').value = '';
+    $('preview').textContent = '';
+    $('preview').className = 'msg ok';
+    $('f-amount').focus();
+  }
+  function add(n) { var v = Number($('f-amount').value || 0) + n; $('f-amount').value = v; preview(); }
+  function preview() {
+    var v = Number($('f-amount').value || 0);
+    $('preview').className = 'msg ok';
+    $('preview').textContent = v > 0 ? ('→ ' + Math.floor(v / RATE) + ' ポイントになります（' + RATE + '円で1pt）') : '';
+  }
+  function grant() {
+    var v = Math.floor(Number($('f-amount').value || 0));
+    if (!(v > 0)) { $('preview').className = 'msg'; $('preview').textContent = '金額を入力してください。'; return; }
+    $('btn-grant').disabled = true;
+    api({ key: localStorage.getItem('pt_staff_key'), line_user_id: currentUid, store_id: localStorage.getItem('pt_store_id'), amount_yen: v }, function (res) {
+      $('btn-grant').disabled = false;
+      if (!res || !res.ok) {
+        $('preview').className = 'msg';
+        $('preview').textContent = (res && res.message) ? res.message : '付与に失敗しました。';
+        return;
+      }
+      $('amount-area').classList.add('hidden');
+      $('result-area').classList.remove('hidden');
+      $('r-name').textContent = res.customer_name ? res.customer_name + ' さま' : 'お客さま';
+      $('r-pt').textContent = '+' + res.added + ' pt';
+      $('r-bal').textContent = '残高 ' + Number(res.balance).toLocaleString() + ' pt';
+      pushSession({ name: $('r-name').textContent, yen: v, pt: res.added });
+    });
+  }
+  function resetFlow() {
+    $('amount-area').classList.add('hidden');
+    $('result-area').classList.add('hidden');
+    $('scan-area').classList.remove('hidden');
+    $('manual-uid').value = '';
+    currentUid = '';
+    startScan();
+  }
+  function pushSession(r) {
+    var list = []; try { list = JSON.parse(localStorage.getItem('pt_session') || '[]'); } catch (e) {}
+    var t = new Date();
+    r.time = ('0' + t.getHours()).slice(-2) + ':' + ('0' + t.getMinutes()).slice(-2);
+    list.unshift(r); list = list.slice(0, 30);
+    localStorage.setItem('pt_session', JSON.stringify(list));
+    var tb = $('session');
+    tb.innerHTML = '';
+    list.forEach(function (x) {
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + esc(x.time) + '</td><td>' + esc(x.name) + '</td><td>' + Number(x.yen).toLocaleString() + '円</td><td>+' + x.pt + 'pt</td>';
+      tb.appendChild(tr);
+    });
+    $('session-empty').style.display = 'none';
+  }
+</script>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092" integrity="sha512-UKNk8GbxkABxKcXYuLkO16EleLGUkcvJWtpSNmExE0Too3ZaFAxTscNWEc1OdAv5/BikHawapSCaiD2XCmp+Bw==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","spa":2}' crossorigin="anonymous"></script>
+</body>
+</html>
