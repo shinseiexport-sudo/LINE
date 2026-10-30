@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>マイページ</title>
+<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP', sans-serif; background: #f4f2ee; color: #2a2622; padding: 16px 12px 40px; }
+  .wrap { max-width: 480px; margin: 0 auto; }
+  .hero { background: #3fa15a; border-radius: 16px; padding: 20px 18px; text-align: center; color: #fff; margin-bottom: 14px; }
+  .hero h1 { font-size: 18px; letter-spacing: 1px; }
+  .card { background: #fff; border-radius: 14px; padding: 18px 16px; box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 14px; }
+  .balance-label { font-size: 13px; color: #7a736a; }
+  .balance { font-size: 42px; font-weight: bold; color: #23643a; margin: 6px 0 2px; }
+  .balance small { font-size: 16px; font-weight: normal; color: #7a736a; }
+  .rate { font-size: 12px; color: #9a938a; }
+  .qrbox { text-align: center; }
+  .qrbox svg { width: 220px; height: 220px; }
+  .qrbox p { font-size: 12px; color: #7a736a; margin-top: 8px; line-height: 1.7; }
+  h2 { font-size: 14px; margin: 4px 0 10px; color: #2a2622; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 7px 4px; text-align: left; border-bottom: 1px solid #eee7dc; }
+  th { color: #9a938a; font-weight: normal; font-size: 11px; }
+  td.num { text-align: right; font-weight: bold; color: #23643a; }
+  .center { text-align: center; font-size: 14px; color: #7a736a; line-height: 1.9; padding: 24px 8px; }
+  .hidden { display: none; }
+  .err { color: #c0392b; font-size: 13px; text-align: center; padding: 12px; line-height: 1.8; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="loading" class="center">読み込み中です…</div>
+
+  <div id="main" class="hidden">
+    <div class="hero">
+      <h1 id="hello">マイページ</h1>
+    </div>
+
+    <div class="card">
+      <div class="balance-label">現在のポイント残高</div>
+      <div class="balance"><span id="balance">0</span><small> pt</small></div>
+      <div class="rate" id="rate">ご利用100円（税抜）ごとに1ポイント</div>
+    </div>
+
+    <div class="card qrbox">
+      <h2>お会計時に提示するQRコード</h2>
+      <div id="qr"></div>
+      <p>お会計のときに、この画面をお店のスタッフに見せてください。<br>読み取ってポイントを入れます。</p>
+    </div>
+
+    <div class="card">
+      <h2>ポイント履歴（新しい順）</h2>
+      <table>
+        <thead><tr><th>日時</th><th>店舗</th><th>ご利用</th><th style="text-align:right;">ポイント</th></tr></thead>
+        <tbody id="hist"></tbody>
+      </table>
+      <p class="err hidden" id="nohist">まだ履歴はありません。</p>
+    </div>
+  </div>
+
+  <div id="failed" class="card hidden"><div class="err" id="errmsg"></div></div>
+</div>
+
+<script>
+// GitHub Pages版マイページ（LIFFのエンドポイントをこのページのURLにしてください）
+var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxKLdgvye_g34TXQFopTr-S6E5FaFfGPmXCmSxoiXJqSxeaEC7akE0L85vmJdJFPY0KsA/exec';
+var MYKEY = 'RZK-a7c3e91f5b28d046'; // スプレッドシート連携の共有キー（スクリプトプロパティ SHARED_KEY と同じ）
+var LIFF_ID = '2012203822-pj6k3wJw';
+
+function $(id) { return document.getElementById(id); }
+function esc(s) { return String(s === null || s === undefined ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function api(data, cb) {
+  fetch(EXEC_URL + '?page=api&act=point&d=' + encodeURIComponent(JSON.stringify(data)))
+    .then(function (r) { return r.json(); }).then(cb)
+    .catch(function (e) { cb({ ok: false, message: '通信に失敗しました: ' + e }); });
+}
+function fail(msg) {
+  $('loading').classList.add('hidden');
+  $('failed').classList.remove('hidden');
+  $('errmsg').textContent = msg;
+}
+
+function loadData_(uid) {
+  api({ op: 'my', key: MYKEY, line_user_id: uid }, function (res) {
+    $('loading').classList.add('hidden');
+    if (!res || !res.ok) {
+      fail((res && res.message) ? res.message : '読み込みに失敗しました。');
+      return;
+    }
+    $('main').classList.remove('hidden');
+    $('hello').textContent = (res.name ? res.name + ' さまの' : '') + 'マイページ';
+    $('balance').textContent = Number(res.balance || 0).toLocaleString();
+    $('rate').textContent = 'ご利用' + Number(res.rate || 100).toLocaleString() + '円ごとに1ポイントたまります（全店舗共通）';
+    // QR（スタッフ用ページが読み取るためのID）
+    var qr = qrcode(0, 'M');
+    qr.addData('PNT:' + uid);
+    qr.make();
+    $('qr').innerHTML = qr.createSvgTag({ cellSize: 4, margin: 2 });
+    // 履歴
+    var tb = $('hist');
+    (res.history || []).forEach(function (h) {
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + esc(h.created_at) + '</td><td>' + esc(h.store_name) + '</td><td>' + Number(h.amount_yen || 0).toLocaleString() + '円</td><td class="num">+' + Number(h.points || 0) + '</td>';
+      tb.appendChild(tr);
+    });
+    if (!(res.history || []).length) $('nohist').classList.remove('hidden');
+  });
+}
+
+liff.init({ liffId: LIFF_ID }).then(function () {
+  if (!liff.isInClient()) {
+    // LINEの外（Safariなど）で開いた場合
+    fail('LINEの中から開いてください。\nLINEの「友だち」画面の下のメニュー（リッチメニュー）か、お店のQRから開くとマイページが表示されます。');
+    return;
+  }
+  return liff.getProfile().then(function (prof) {
+    loadData_(prof.userId);
+  }).catch(function (e2) {
+    fail('プロフィールを取得できませんでした。（' + e2 + '）もう一度開き直してください。');
+  });
+}).catch(function (e) {
+  fail('LINEの起動を確認できませんでした。（' + e + '）LINEの「友だち」画面のメニューから開いてください。');
+});
+</script>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092" integrity="sha512-UKNk8GbxkABxKcXYuLkO16EleLGUkcvJWtpSNmExE0Too3ZaFAxTscNWEc1OdAv5/BikHawapSCaiD2XCmp+Bw==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","spa":2}' crossorigin="anonymous"></script>
+</body>
+</html>
