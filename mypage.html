@@ -65,9 +65,10 @@
 </div>
 
 <script>
-// GitHub Pages版マイページ（LIFFのエンドポイントをこのページのURLにしてください）
+// GitHub Pages版マイページ（LIFFのエンドポイントをこのページのURLにする）
+// キーはページに埋め込まず、起動時にGAS（op:'config'）から受け取る（coupon.html と同じ方式）
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxKLdgvye_g34TXQFopTr-S6E5FaFfGPmXCmSxoiXJqSxeaEC7akE0L85vmJdJFPY0KsA/exec';
-var MYKEY = 'RZK-a7c3e91f5b28d046'; // スプレッドシート連携の共有キー（スクリプトプロパティ SHARED_KEY と同じ）
+var MYKEY = '';
 var LIFF_ID = '2012203822-pj6k3wJw';
 
 function $(id) { return document.getElementById(id); }
@@ -110,21 +111,32 @@ function loadData_(uid) {
   });
 }
 
-liff.init({ liffId: LIFF_ID }).then(function () {
-  if (!liff.isInClient()) {
-    // LINEの外（Safariなど）で開いた場合
-    fail('LINEの中から開いてください。\nLINEの「友だち」画面の下のメニュー（リッチメニュー）か、お店のQRから開くとマイページが表示されます。');
-    return;
-  }
-  return liff.getProfile().then(function (prof) {
-    loadData_(prof.userId);
-  }).catch(function (e2) {
-    fail('プロフィールを取得できませんでした。（' + e2 + '）もう一度開き直してください。');
+function startLiff_() {
+  liff.init({ liffId: LIFF_ID }).then(function () {
+    if (!liff.isInClient()) {
+      // LINEの外（Safariなど）で開いた場合
+      fail('LINEの中から開いてください。\nLINEの「友だち」画面の下のメニュー（リッチメニュー）か、お店のQRから開くとマイページが表示されます。');
+      return;
+    }
+    return liff.getProfile().then(function (prof) {
+      loadData_(prof.userId);
+    }).catch(function (e2) {
+      fail('プロフィールを取得できませんでした。（' + e2 + '）もう一度開き直してください。');
+    });
+  }).catch(function (e) {
+    fail('LINEの起動を確認できませんでした。（' + e + '）LINEの「友だち」画面のメニューから開いてください。');
   });
-}).catch(function (e) {
-  fail('LINEの起動を確認できませんでした。（' + e + '）LINEの「友だち」画面のメニューから開いてください。');
-});
+}
+
+// 起動: まずGASからキー（とレート）を受け取る → LINEと接続
+fetch(EXEC_URL + '?page=api&act=point&d=' + encodeURIComponent(JSON.stringify({ op: 'config' })))
+  .then(function (r) { return r.json(); })
+  .then(function (d) {
+    if (!d || !d.ok) { fail('【E】設定を読み込めませんでした。（' + ((d && d.message) || '') + '）'); return; }
+    MYKEY = d.key || '';
+    startLiff_();
+  })
+  .catch(function (e) { fail('【E】設定を読み込めませんでした。電波の良い場所でもう一度開いてください。（' + e + '）'); });
 </script>
-<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092" integrity="sha512-UKNk8GbxkABxKcXYuLkO16EleLGUkcvJWtpSNmExE0Too3ZaFAxTscNWEc1OdAv5/BikHawapSCaiD2XCmp+Bw==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","spa":2}' crossorigin="anonymous"></script>
 </body>
 </html>
