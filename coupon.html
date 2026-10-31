@@ -64,13 +64,13 @@
     <h2 class="sec" id="sec-avail">受け取れるクーポン</h2>
     <div id="avail"></div>
     <div id="used-block" class="hidden">
-      <h2 class="sec">使い終わったクーポン</h2>
+      <h2 class="sec">使い終わった・期限切れのクーポン</h2>
       <div id="used"></div>
     </div>
   </div>
 
   <div id="show-area" class="hidden">
-    <div class="show-banner">店員さんに見せてください</div>
+    <div class="show-banner">スタッフにご提示ください</div>
     <div id="show-ticket"></div>
     <div class="used-note">このクーポンは使用済みになりました。</div>
     <button type="button" class="btn2" onclick="backToList()">とじる</button>
@@ -142,8 +142,12 @@ function loadHome() {
       return;
     }
     // 使えるクーポン
-    if (!d.mine.length) mine.innerHTML = '<p class="empty">使えるクーポンはまだありません。下の「受け取れるクーポン」から受け取れます。</p>';
-    d.mine.forEach(function (item) {
+    // 期限切れのクーポンは「使えるクーポン」に出さず、下の「使い終わった・期限切れのクーポン」へ移す
+    var expired = d.mine.filter(function (it) { return it.block && it.block.indexOf('過ぎて') >= 0; });
+    var mineList = d.mine.filter(function (it) { return !(it.block && it.block.indexOf('過ぎて') >= 0); });
+    mineList.sort(function (a, b) { return (a.block ? 1 : 0) - (b.block ? 1 : 0); }); // 今使えるものを上に
+    if (!mineList.length) mine.innerHTML = '<p class="empty">使えるクーポンはまだありません。下の「受け取れるクーポン」から受け取れます。</p>';
+    mineList.forEach(function (item) {
       var div = document.createElement('div');
       div.innerHTML = item.block
         ? ticketCard(item.coupon, '<button type="button" class="btn" disabled>' + (item.block.indexOf('過ぎて') >= 0 ? '期限切れです' : 'まだ使えません') + '</button><div class="t-period" style="color:#d63031;margin:6px 0 0;">' + esc(item.block) + '</div>')
@@ -170,13 +174,19 @@ function loadHome() {
       }
     }
     // 使い終わったクーポン
-    if (!d.used.length) { $('used-block').classList.add('hidden'); }
+    if (!d.used.length && !expired.length) { $('used-block').classList.add('hidden'); }
     else {
       $('used-block').classList.remove('hidden');
       d.used.forEach(function (item) {
         var div = document.createElement('div');
         div.className = 'used-row';
         div.innerHTML = '<span>' + esc(item.coupon.coupon_name) + '</span><span><span class="used-badge">使用済み</span> ' + esc(String(item.used_at || '').slice(0, 16)) + '</span>';
+        used.appendChild(div);
+      });
+      expired.forEach(function (item) {
+        var div = document.createElement('div');
+        div.className = 'used-row';
+        div.innerHTML = '<span>' + esc(item.coupon.coupon_name) + '</span><span><span class="used-badge">期限切れ</span> ' + esc(periodText(item.coupon)) + '</span>';
         used.appendChild(div);
       });
     }

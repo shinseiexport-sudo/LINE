@@ -77,7 +77,21 @@ var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxKLdgvye_g34TXQFopTr-S6
 var STORES = [{"store_id": "ST0001", "store_name": "A店"}, {"store_id": "ST0002", "store_name": "B店"}];
 var SURVEY_KEY = 'RZK-a7c3e91f5b28d046';
 var ADD_URL = '';
-var STORE_PARAM = '';
+// QRの「どの店か」の印（?store=ST000x）。LINEで開いた直後は liff.state の中に入って届くので両方を見る
+var STORE_PARAM = (function () {
+  function q(name) {
+    var m = new RegExp('[?&]' + name.replace('.', '\\.') + '=([^&#]*)').exec(window.location.search);
+    return m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : '';
+  }
+  var s = q('store');
+  if (s) return s;
+  var st = q('liff.state');
+  if (st) {
+    var m2 = /[?&]store=([^&#]+)/.exec(st);
+    if (m2) return decodeURIComponent(m2[1]);
+  }
+  return '';
+})();
 
 var profile_ = null;
 var friendFlag_ = true;
