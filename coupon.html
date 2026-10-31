@@ -5,55 +5,87 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>クーポン</title>
 <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap" rel="stylesheet">
 <style>
+  /* チケット風デザイン：切り取り線＋丸い切り欠き。色は温かいコーラル〜ピンク */
+  :root { --bg:#fff4ec; --paper:#ffffff; --ink:#3b2a24; --muted:#9a8378; --coral:#ff6f4f; --pink:#ff8fa8; --cream:#fff9f3; --line:#f3d9cc; --off:#cbbfb8; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'Hiragino Sans', 'Noto Sans JP', sans-serif; background: #f4f2ee; color: #2a2622; padding: 16px 12px 40px; }
-  .wrap { max-width: 480px; margin: 0 auto; }
-  .hero { background: #3fa15a; border-radius: 16px; padding: 20px 16px; text-align: center; color: #fff; margin-bottom: 12px; }
-  .hero h1 { font-size: 20px; letter-spacing: 1px; }
-  .hero p { font-size: 12px; margin-top: 6px; opacity: .92; }
-  .warn { background: #fff; border: 2px solid #d63031; border-radius: 14px; padding: 14px 12px; text-align: center; margin-bottom: 14px; }
-  .warn-big { color: #d63031; font-size: 18px; font-weight: bold; line-height: 1.4; }
-  .warn-small { color: #d63031; font-size: 12px; margin-top: 6px; font-weight: bold; }
-  .sec { font-size: 15px; font-weight: bold; margin: 18px 0 8px; color: #2a2622; }
-  .ticket { background: #fff; border: 2px dashed #3fa15a; border-radius: 14px; padding: 14px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
-  .ticket img { width: 100%; border-radius: 10px; margin-bottom: 10px; display: block; }
-  .t-name { font-size: 14px; font-weight: bold; }
-  .t-benefit { font-size: 20px; font-weight: bold; color: #d63031; margin: 6px 0; line-height: 1.4; }
-  .t-period { font-size: 12px; color: #7a736a; margin-bottom: 10px; }
-  .btn { width: 100%; padding: 14px; font-size: 16px; font-weight: bold; color: #fff; background: #3fa15a; border: 0; border-radius: 12px; cursor: pointer; }
-  .btn:disabled { background: #cbc4b8; cursor: not-allowed; }
-  .get-btn { width: 100%; padding: 12px; font-size: 15px; font-weight: bold; color: #fff; background: #06c755; border: 0; border-radius: 10px; cursor: pointer; }
-  .used-row { background: #fff; border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; font-size: 13px; color: #7a736a; display: flex; justify-content: space-between; align-items: center; }
-  .used-badge { color: #fff; background: #cbc4b8; border-radius: 8px; padding: 2px 8px; font-size: 11px; }
+  body { font-family: 'M PLUS Rounded 1c', 'Hiragino Maru Gothic ProN', 'Hiragino Sans', 'Noto Sans JP', sans-serif; background: var(--bg); color: var(--ink); padding: 14px 14px 40px; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 460px; margin: 0 auto; }
+  .hero { position: relative; overflow: hidden; background: linear-gradient(135deg, var(--coral), var(--pink)); border-radius: 22px; padding: 22px 18px 20px; color: #fff; margin-bottom: 12px; box-shadow: 0 6px 18px rgba(255,111,79,.25); }
+  .hero::before, .hero::after { content: ''; position: absolute; border-radius: 50%; background: rgba(255,255,255,.18); }
+  .hero::before { width: 120px; height: 120px; right: -30px; top: -40px; }
+  .hero::after { width: 70px; height: 70px; right: 70px; bottom: -35px; }
+  .hero-kicker { font-size: 11px; letter-spacing: .3em; font-weight: 800; opacity: .9; }
+  .hero h1 { font-size: 24px; font-weight: 800; margin-top: 2px; }
+  .hero p { font-size: 12px; margin-top: 6px; opacity: .95; }
+  .warn { display: flex; gap: 10px; align-items: flex-start; background: var(--paper); border: 2px solid var(--coral); border-radius: 16px; padding: 12px 14px; margin-bottom: 8px; }
+  .warn-icon { flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--coral); color: #fff; font-weight: 800; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+  .warn-big { color: var(--coral); font-size: 15px; font-weight: 800; line-height: 1.5; }
+  .warn-small { color: var(--ink); font-size: 12px; margin-top: 2px; }
+  .sec { font-size: 15px; font-weight: 800; margin: 22px 2px 10px; display: flex; align-items: center; gap: 8px; }
+  .sec::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--coral); }
+  .ticket { position: relative; background: var(--paper); border-radius: 18px; margin-bottom: 16px; box-shadow: 0 4px 14px rgba(59,42,36,.08); overflow: hidden; }
+  .ticket img { width: 100%; display: block; aspect-ratio: 1.6 / 1; object-fit: cover; }
+  .t-top { padding: 14px 16px 12px; }
+  .t-kicker { display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: .2em; color: var(--coral); background: #ffe9e2; border-radius: 99px; padding: 2px 9px; }
+  .t-name { font-size: 16px; font-weight: 800; margin-top: 6px; line-height: 1.4; }
+  .t-note { font-size: 13px; margin-top: 4px; line-height: 1.5; }
+  .t-period { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .t-perf { position: relative; height: 0; border-top: 2px dashed var(--line); margin: 0 14px; }
+  .t-perf::before, .t-perf::after { content: ''; position: absolute; top: -12px; width: 22px; height: 22px; border-radius: 50%; background: var(--bg); }
+  .t-perf::before { left: -26px; } .t-perf::after { right: -26px; }
+  .t-bottom { padding: 12px 16px 16px; background: var(--cream); }
+  .t-benefit { font-size: 30px; font-weight: 800; color: var(--coral); line-height: 1.15; letter-spacing: .01em; }
+  .t-sub { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .t-sub s { color: var(--off); }
+  .t-btns { margin-top: 12px; }
+  .btn { width: 100%; padding: 14px; font: inherit; font-size: 16px; font-weight: 800; color: #fff; background: linear-gradient(135deg, var(--coral), var(--pink)); border: 0; border-radius: 99px; cursor: pointer; box-shadow: 0 4px 10px rgba(255,111,79,.3); }
+  .btn:disabled { background: var(--off); box-shadow: none; cursor: not-allowed; }
+  .get-btn { width: 100%; padding: 12px; font: inherit; font-size: 15px; font-weight: 800; color: var(--coral); background: #fff; border: 2px solid var(--coral); border-radius: 99px; cursor: pointer; }
+  .ticket.is-off { filter: grayscale(.7); opacity: .8; }
+  .ticket.is-off .t-benefit { color: var(--muted); }
+  .ticket.is-new::after { content: 'NEW'; position: absolute; top: 12px; right: 12px; font-size: 10px; font-weight: 800; letter-spacing: .1em; color: #fff; background: var(--pink); border-radius: 99px; padding: 3px 9px; }
+  .used-row { background: var(--paper); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; font-size: 13px; color: var(--muted); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .used-row > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .used-badge { color: #fff; background: var(--off); border-radius: 99px; padding: 2px 9px; font-size: 11px; font-weight: 700; }
   .msg { margin: 10px 0; font-size: 13px; color: #c0392b; text-align: center; }
   .hidden { display: none; }
-  .center { text-align: center; font-size: 14px; color: #7a736a; line-height: 1.8; }
-  .empty { font-size: 13px; color: #9a938a; }
-  .show-banner { background: #d63031; color: #fff; font-size: 20px; font-weight: bold; text-align: center; border-radius: 14px; padding: 18px 12px; margin-bottom: 12px; }
-  .used-note { text-align: center; font-size: 13px; color: #7a736a; margin: 10px 0; }
-  .btn2 { width: 100%; margin-top: 10px; padding: 13px; font-size: 15px; font-weight: bold; color: #2a2622; background: #e8e4dc; border: 0; border-radius: 12px; cursor: pointer; }
-  .mdl-bg { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 50; }
-  .mdl { background: #fff; border-radius: 16px; width: 100%; max-width: 360px; padding: 20px 16px 16px; text-align: center; }
-  .mdl-title { font-size: 17px; font-weight: bold; color: #2a2622; margin-bottom: 10px; line-height: 1.5; }
-  .mdl-text { font-size: 14px; color: #d63031; font-weight: bold; line-height: 1.6; margin-bottom: 16px; white-space: pre-line; }
+  .center { text-align: center; font-size: 14px; color: var(--muted); line-height: 1.8; background: var(--paper); border-radius: 16px; padding: 18px; }
+  .empty { font-size: 13px; color: var(--muted); background: var(--paper); border: 2px dashed var(--line); border-radius: 16px; padding: 16px; text-align: center; line-height: 1.7; }
+  .show-banner { background: linear-gradient(135deg, var(--coral), var(--pink)); color: #fff; font-size: 21px; font-weight: 800; text-align: center; border-radius: 18px; padding: 16px 12px 12px; margin-bottom: 14px; }
+  .show-clock { display: block; font-size: 13px; font-weight: 700; margin-top: 4px; opacity: .95; letter-spacing: .05em; }
+  .stamp { position: absolute; right: 16px; bottom: 18px; transform: rotate(-12deg); border: 3px solid #e2483d; color: #e2483d; border-radius: 12px; padding: 4px 12px; font-weight: 800; font-size: 20px; text-align: center; line-height: 1.1; background: rgba(255,255,255,.85); }
+  .stamp small { display: block; font-size: 10px; font-weight: 700; }
+  @media (prefers-reduced-motion: no-preference) { .stamp { animation: stampIn .35s ease-out both; } @keyframes stampIn { from { transform: rotate(-12deg) scale(1.8); opacity: 0; } to { transform: rotate(-12deg) scale(1); opacity: 1; } } }
+  .used-note { text-align: center; font-size: 13px; color: var(--muted); margin: 6px 0; }
+  .btn2 { width: 100%; margin-top: 10px; padding: 13px; font: inherit; font-size: 15px; font-weight: 800; color: var(--ink); background: #fff; border: 2px solid var(--line); border-radius: 99px; cursor: pointer; }
+  .mdl-bg { position: fixed; inset: 0; background: rgba(59,42,36,.5); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 50; }
+  .mdl { background: #fff; border-radius: 22px; width: 100%; max-width: 360px; padding: 22px 18px 18px; text-align: center; }
+  .mdl-title { font-size: 17px; font-weight: 800; color: var(--ink); margin-bottom: 10px; line-height: 1.5; }
+  .mdl-text { font-size: 14px; color: var(--coral); font-weight: 700; line-height: 1.6; margin-bottom: 16px; white-space: pre-line; }
   .mdl-btns { display: flex; gap: 8px; }
-  .mdl-btns button { flex: 1; padding: 13px; font-size: 15px; font-weight: bold; border: 0; border-radius: 12px; cursor: pointer; }
+  .mdl-btns button { flex: 1; padding: 13px; font: inherit; font-size: 15px; font-weight: 800; border: 0; border-radius: 99px; cursor: pointer; }
   .mdl-bg.hidden { display: none; } /* 非表示を確実に効かせる */
-  .mdl-no { background: #e8e4dc; color: #2a2622; }
-  .mdl-yes { background: #3fa15a; color: #fff; }
+  .mdl-no { background: #f3ebe6; color: var(--ink); }
+  .mdl-yes { background: linear-gradient(135deg, var(--coral), var(--pink)); color: #fff; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
+    <div class="hero-kicker">COUPON</div>
     <h1>クーポン</h1>
     <p>お会計の際にクーポンをご提示ください</p>
   </div>
 
   <div class="warn">
-    <div class="warn-big">⚠ お会計の際に<br>クーポンをご提示ください</div>
-    <div class="warn-small">クーポンを表示すると使用済になりますのでご注意下さい。</div>
+    <div class="warn-icon">!</div>
+    <div>
+      <div class="warn-big">お会計のときに、スタッフの前で表示してください</div>
+      <div class="warn-small">「クーポンを表示する」を押すと使用済みになります。</div>
+    </div>
   </div>
 
   <div id="cmsg" class="msg hidden"></div>
@@ -70,7 +102,7 @@
   </div>
 
   <div id="show-area" class="hidden">
-    <div class="show-banner">スタッフにご提示ください</div>
+    <div class="show-banner">スタッフにご提示ください<span class="show-clock" id="show-clock"></span></div>
     <div id="show-ticket"></div>
     <div class="used-note">このクーポンは使用済みになりました。</div>
     <button type="button" class="btn2" onclick="backToList()">とじる</button>
@@ -112,16 +144,38 @@ function periodText(c) {
   if (u) return u + ' まで';
   return '';
 }
-function ticketHtml(c) {
-  return '<div class="t-name">' + esc(c.coupon_name) + '</div>' +
-    '<div class="t-benefit">' + esc(benefitText(c)) + '</div>' +
-    (c.notes && c.benefit_type === 'discount' ? '<div class="t-period">' + esc(c.notes) + '</div>' : '') +
-    '<div class="t-period">' + esc(periodText(c)) + '</div>';
+// 大きく見せる特典（例：15%OFF）と、小さく添える補足（例：¥1,000 → ¥850）に分ける
+function benefitParts(c) {
+  if (c.benefit_type === 'discount') {
+    var big = c.discount_yen > 0 ? '¥' + Number(c.discount_yen).toLocaleString('ja-JP') + ' OFF' : c.discount_percent + '% OFF';
+    var sub = '';
+    if (c.price_before > 0) {
+      var after = c.discount_yen > 0 ? (c.price_before - c.discount_yen) : Math.round(c.price_before * (100 - c.discount_percent) / 100);
+      after = Math.max(0, after);
+      sub = '<s>¥' + Number(c.price_before).toLocaleString('ja-JP') + '</s> → ¥' + after.toLocaleString('ja-JP');
+    }
+    return { big: big, sub: sub };
+  }
+  var label = ({ free: '無料', cashback: 'キャッシュバック', present: 'プレゼント', other: '特典' })[c.benefit_type] || '特典';
+  return { big: label, sub: '' };
 }
-function ticketCard(c, btnHtml) {
-  return '<div class="ticket">' +
+function ticketHtml(c) {
+  var b = benefitParts(c);
+  var per = periodText(c);
+  return '<div class="t-top">' +
+      '<span class="t-kicker">COUPON</span>' +
+      '<div class="t-name">' + esc(c.coupon_name) + '</div>' +
+      (c.notes ? '<div class="t-note">' + esc(c.notes) + '</div>' : '') +
+      (per ? '<div class="t-period">有効期限：' + esc(per) + '</div>' : '') +
+    '</div>' +
+    '<div class="t-perf"></div>' +
+    '<div class="t-bottom"><div class="t-benefit">' + esc(b.big) + '</div>' +
+      (b.sub ? '<div class="t-sub">' + b.sub + '</div>' : '');
+}
+function ticketCard(c, btnHtml, cls) {
+  return '<div class="ticket' + (cls ? ' ' + cls : '') + '">' +
     (c.image_url ? '<img src="' + esc(c.image_url) + '" alt="" onerror="this.style.display=\'none\'">' : '') +
-    ticketHtml(c) + btnHtml + '</div>';
+    ticketHtml(c) + (btnHtml ? '<div class="t-btns">' + btnHtml + '</div>' : '') + '</div></div>';
 }
 function api(act, data, cb) {
   fetch(EXEC_URL + '?page=api&act=' + act + '&d=' + encodeURIComponent(JSON.stringify(data)))
@@ -150,7 +204,7 @@ function loadHome() {
     mineList.forEach(function (item) {
       var div = document.createElement('div');
       div.innerHTML = item.block
-        ? ticketCard(item.coupon, '<button type="button" class="btn" disabled>' + (item.block.indexOf('過ぎて') >= 0 ? '期限切れです' : 'まだ使えません') + '</button><div class="t-period" style="color:#d63031;margin:6px 0 0;">' + esc(item.block) + '</div>')
+        ? ticketCard(item.coupon, '<button type="button" class="btn" disabled>' + (item.block.indexOf('過ぎて') >= 0 ? '期限切れです' : 'まだ使えません') + '</button><div class="t-sub" style="margin-top:6px;">' + esc(item.block) + '</div>', 'is-off')
         : ticketCard(item.coupon, '<button type="button" class="btn" data-cc="' + esc(item.cc_id) + '">クーポンを表示する</button>');
       mine.appendChild(div);
     });
@@ -160,7 +214,7 @@ function loadHome() {
       $('sec-avail').classList.remove('hidden');
       d.available.forEach(function (c) {
         var div = document.createElement('div');
-        div.innerHTML = ticketCard(c, '<button type="button" class="get-btn" data-cp="' + esc(c.coupon_id) + '">受け取る</button>');
+        div.innerHTML = ticketCard(c, '<button type="button" class="get-btn" data-cp="' + esc(c.coupon_id) + '">受け取る</button>', 'is-new');
         avail.appendChild(div);
       });
     }
@@ -231,7 +285,10 @@ function doShowCoupon_(ccId) {
     if (!d || !d.ok) { popup_('クーポンを表示できません', (d && d.message) || 'エラーが発生しました。', 'OK', '', loadHome); return; }
     if (!d.used_now) { popup_('このクーポンは使用済みです', 'すでに一度表示されたため、もう使えません（お一人様1回まで）。', 'OK', '', loadHome); return; }
     if (!d.coupon) { showMsg('クーポンの内容を読み込めませんでした。'); return; }
-    $('show-ticket').innerHTML = ticketCard(d.coupon, '');
+    var nowD = new Date();
+    var pad = function (n) { return ('0' + n).slice(-2); };
+    $('show-ticket').innerHTML = ticketCard(d.coupon, '').replace(/<\/div>$/, '<div class="stamp">使用済<small>' + (nowD.getMonth() + 1) + '/' + nowD.getDate() + ' ' + pad(nowD.getHours()) + ':' + pad(nowD.getMinutes()) + '</small></div></div>');
+    startShowClock_();
     $('list-area').classList.add('hidden');
     $('show-area').classList.remove('hidden');
     window.scrollTo(0, 0);
@@ -245,7 +302,20 @@ function receiveCoupon(cpId) {
   });
 }
 
+// 表示中は今の時刻を秒まで動かす（画面のスクリーンショットの使い回し防止）
+var clockTimer_ = null;
+function startShowClock_() {
+  var el = $('show-clock');
+  var tick = function () {
+    var d = new Date(), p = function (n) { return ('0' + n).slice(-2); };
+    el.textContent = (d.getMonth() + 1) + '月' + d.getDate() + '日 ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+  };
+  tick();
+  if (clockTimer_) clearInterval(clockTimer_);
+  clockTimer_ = setInterval(tick, 1000);
+}
 function backToList() {
+  if (clockTimer_) { clearInterval(clockTimer_); clockTimer_ = null; }
   $('show-area').classList.add('hidden');
   $('list-area').classList.remove('hidden');
   loadHome();
