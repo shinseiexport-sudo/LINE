@@ -52,6 +52,7 @@
   </div>
 
   <div id="scan-area" class="card">
+    <div id="key-status" style="font-size:11px;color:#7a736a;margin-bottom:6px;"></div>
     <div id="reader"></div>
     <button class="btn" id="btn-scan" onclick="startScan()">📷 お客さまのQRを読み取る</button>
     <button class="btn red hidden" id="btn-stop" onclick="stopScan()">読み取りをやめる</button>
@@ -73,6 +74,7 @@
       <div class="chip" onclick="add(2000)">+2,000</div>
       <div class="chip" onclick="add(3000)">+3,000</div>
       <div class="chip" onclick="add(5000)">+5,000</div>
+      <div class="chip" onclick="clearAmt()">クリア</div>
     </div>
     <div class="msg ok" id="preview"></div>
     <button class="btn" id="btn-grant" onclick="grant()">ポイントを付与する</button>
@@ -100,6 +102,11 @@
   var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxKLdgvye_g34TXQFopTr-S6E5FaFfGPmXCmSxoiXJqSxeaEC7akE0L85vmJdJFPY0KsA/exec';
   var RATE = 100; // ポイントの計算レート（サーバー側 PointService.gs の PT_RATE_YEN と同じにしてください）
   var qr = null, currentUid = '';
+  // QRにキーを含めて配布できる（例: point-staff.html?key=XXXX）— URLにキーがあれば自動で使う
+  try {
+    var urlKey = new URLSearchParams(location.search).get('key') || '';
+    if (urlKey) localStorage.setItem('pt_staff_key', urlKey);
+  } catch (e) {}
   function $(id) { return document.getElementById(id); }
   function esc(s) { return String(s === null || s === undefined ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
   function api(data, cb) {
@@ -121,9 +128,14 @@
       if (savedStore) sel.value = savedStore;
       if (savedKey && sel.value) { $('f-key').value = savedKey; saveSetup(true); }
       else openSetup();
+      showKeyStatus();
     }).catch(function () { openSetup(); });
   }
-  function openSetup() { $('setup').classList.remove('hidden'); }
+  function openSetup() { $('f-key').value = localStorage.getItem('pt_staff_key') || ''; $('setup').classList.remove('hidden'); }
+  function showKeyStatus() {
+    var k = localStorage.getItem('pt_staff_key') || '';
+    $('key-status').textContent = k ? ('この端末のキー: ' + k.slice(0, 8) + '…') : 'キー未設定';
+  }
   function saveSetup(silent) {
     var k = $('f-key').value.trim(), s = $('f-store').value;
     if (!k || !s) { $('setup-msg').textContent = 'スタッフキーと店舗を選んでください。'; return; }
@@ -132,6 +144,7 @@
     var name = $('f-store').options[$('f-store').selectedIndex].textContent;
     $('store-label').textContent = '店舗: ' + name;
     $('setup').classList.add('hidden');
+    showKeyStatus();
     if (!silent) resetFlow();
   }
   function startScan() {
@@ -172,6 +185,7 @@
     $('f-amount').focus();
   }
   function add(n) { var v = Number($('f-amount').value || 0) + n; $('f-amount').value = v; preview(); }
+  function clearAmt() { $('f-amount').value = ''; preview(); $('f-amount').focus(); }
   function preview() {
     var v = Number($('f-amount').value || 0);
     $('preview').className = 'msg ok';
@@ -184,8 +198,13 @@
     api({ key: localStorage.getItem('pt_staff_key'), line_user_id: currentUid, store_id: localStorage.getItem('pt_store_id'), amount_yen: v }, function (res) {
       $('btn-grant').disabled = false;
       if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '付与に失敗しました。';
         $('preview').className = 'msg';
-        $('preview').textContent = (res && res.message) ? res.message : '付与に失敗しました。';
+        if (msg.indexOf('キー') >= 0) {
+          $('preview').innerHTML = esc(msg) + '<br><button class="btn gray" style="margin-top:8px;padding:8px 14px;font-size:12px;" onclick="openSetup()">キーを入れ替える（設定）</button>';
+        } else {
+          $('preview').textContent = msg;
+        }
         return;
       }
       $('amount-area').classList.add('hidden');
@@ -220,6 +239,5 @@
     $('session-empty').style.display = 'none';
   }
 </script>
-<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092" integrity="sha512-UKNk8GbxkABxKcXYuLkO16EleLGUkcvJWtpSNmExE0Too3ZaFAxTscNWEc1OdAv5/BikHawapSCaiD2XCmp+Bw==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","spa":2}' crossorigin="anonymous"></script>
 </body>
 </html>
