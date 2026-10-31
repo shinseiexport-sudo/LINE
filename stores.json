@@ -11,6 +11,10 @@
     {
       "store_id": "ST0003",
       "store_name": "C店"
+    },
+    {
+      "store_id": "ST0004",
+      "store_name": "D店"
     }
   ]
 }
