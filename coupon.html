@@ -46,6 +46,10 @@
   .get-btn { width: 100%; padding: 12px; font: inherit; font-size: 15px; font-weight: 800; color: var(--coral); background: #fff; border: 2px solid var(--coral); border-radius: 99px; cursor: pointer; }
   .ticket.is-off { filter: grayscale(.7); opacity: .8; }
   .ticket.is-tap { cursor: pointer; }
+  .t-terms { font-size: 12px; line-height: 1.6; white-space: pre-line; margin-top: 10px; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; color: var(--ink); }
+  .t-terms b { display: block; font-size: 11px; color: var(--coral); }
+  .common-terms { font-size: 12px; line-height: 1.7; white-space: pre-line; color: var(--muted); background: var(--paper); border-radius: 14px; padding: 12px 14px; margin-top: 18px; }
+  .common-terms b { display: block; color: var(--ink); font-size: 12px; margin-bottom: 2px; }
   .ticket.is-tap:active { transform: scale(.99); }
   .ticket.is-off .t-benefit { color: var(--muted); }
   .ticket.is-new::after { content: 'NEW'; position: absolute; top: 12px; right: 12px; font-size: 10px; font-weight: 800; letter-spacing: .1em; color: #fff; background: var(--pink); border-radius: 99px; padding: 3px 9px; }
@@ -109,6 +113,8 @@
     <div class="used-note" id="used-note">このクーポンは使用済みになりました。</div>
     <button type="button" class="btn2" onclick="backToList()">とじる</button>
   </div>
+
+  <div id="common-terms" class="common-terms hidden"></div>
 </div>
 
 <script>
@@ -173,7 +179,8 @@ function ticketHtml(c) {
     '</div>' +
     '<div class="t-perf"></div>' +
     '<div class="t-bottom"><div class="t-benefit">' + esc(b.big) + '</div>' +
-      (b.sub ? '<div class="t-sub">' + b.sub + '</div>' : '');
+      (b.sub ? '<div class="t-sub">' + b.sub + '</div>' : '') +
+      (c.terms ? '<div class="t-terms"><b>ご利用方法・注意事項</b>' + esc(c.terms) + '</div>' : '');
 }
 function ticketCard(c, btnHtml, cls, attr) {
   return '<div class="ticket' + (cls ? ' ' + cls : '') + '"' + (attr ? ' ' + attr : '') + '>' +
@@ -190,6 +197,7 @@ function api(act, data, cb) {
 function loadHome() {
   api('couponHome', { key: API_KEY, lineUserId: profile_.userId }, function (d) {
     if (!d || !d.ok) { showMsg((d && d.message) || '読み込みに失敗しました。'); return; }
+    setCommonTerms_(d.common_terms);
     var mine = $('mine'), avail = $('avail'), used = $('used');
     mine.innerHTML = ''; avail.innerHTML = ''; used.innerHTML = '';
     if (!d.registered) {
@@ -276,6 +284,15 @@ function popup_(title, text, okLabel, cancelLabel, onOk, onCancel) {
   $('mdl-no').onclick = function () { $('mdl').classList.add('hidden'); if (onCancel) onCancel(); };
 }
 var showing_ = false; // 二度押し防止
+// お店が書いた「全クーポン共通の注意書き」を一番下に表示する（空なら出さない）
+function setCommonTerms_(t) {
+  var el = $('common-terms');
+  if (!el) return;
+  t = String(t || '').trim();
+  if (!t) { el.classList.add('hidden'); return; }
+  el.innerHTML = '<b>ご利用にあたって</b>' + esc(t);
+  el.classList.remove('hidden');
+}
 var ccInfo_ = {}; // cc_id → 持っているクーポンの情報（何度でも使えるかの判定用）
 function showCoupon(ccId, onCancel) {
   if (showing_) return;
