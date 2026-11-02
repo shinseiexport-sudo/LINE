@@ -45,6 +45,8 @@
   .btn:disabled { background: var(--off); box-shadow: none; cursor: not-allowed; }
   .get-btn { width: 100%; padding: 12px; font: inherit; font-size: 15px; font-weight: 800; color: var(--coral); background: #fff; border: 2px solid var(--coral); border-radius: 99px; cursor: pointer; }
   .ticket.is-off { filter: grayscale(.7); opacity: .8; }
+  .ticket.is-tap { cursor: pointer; }
+  .ticket.is-tap:active { transform: scale(.99); }
   .ticket.is-off .t-benefit { color: var(--muted); }
   .ticket.is-new::after { content: 'NEW'; position: absolute; top: 12px; right: 12px; font-size: 10px; font-weight: 800; letter-spacing: .1em; color: #fff; background: var(--pink); border-radius: 99px; padding: 3px 9px; }
   .used-row { background: var(--paper); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; font-size: 13px; color: var(--muted); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
@@ -104,7 +106,7 @@
   <div id="show-area" class="hidden">
     <div class="show-banner">スタッフにご提示ください<span class="show-clock" id="show-clock"></span></div>
     <div id="show-ticket"></div>
-    <div class="used-note">このクーポンは使用済みになりました。</div>
+    <div class="used-note" id="used-note">このクーポンは使用済みになりました。</div>
     <button type="button" class="btn2" onclick="backToList()">とじる</button>
   </div>
 </div>
@@ -163,17 +165,18 @@ function ticketHtml(c) {
   var b = benefitParts(c);
   var per = periodText(c);
   return '<div class="t-top">' +
-      '<span class="t-kicker">COUPON</span>' +
+      '<span class="t-kicker">COUPON' + (c.use_limit === 'unlimited' ? '・何度でも使える' : '') + '</span>' +
       '<div class="t-name">' + esc(c.coupon_name) + '</div>' +
       (c.notes ? '<div class="t-note">' + esc(c.notes) + '</div>' : '') +
       (per ? '<div class="t-period">有効期限：' + esc(per) + '</div>' : '') +
+      (c.coupon_code ? '<div class="t-period">No. ' + esc(c.coupon_code) + '</div>' : '') +
     '</div>' +
     '<div class="t-perf"></div>' +
     '<div class="t-bottom"><div class="t-benefit">' + esc(b.big) + '</div>' +
       (b.sub ? '<div class="t-sub">' + b.sub + '</div>' : '');
 }
-function ticketCard(c, btnHtml, cls) {
-  return '<div class="ticket' + (cls ? ' ' + cls : '') + '">' +
+function ticketCard(c, btnHtml, cls, attr) {
+  return '<div class="ticket' + (cls ? ' ' + cls : '') + '"' + (attr ? ' ' + attr : '') + '>' +
     (c.image_url ? '<img src="' + esc(c.image_url) + '" alt="" onerror="this.style.display=\'none\'">' : '') +
     ticketHtml(c) + (btnHtml ? '<div class="t-btns">' + btnHtml + '</div>' : '') + '</div></div>';
 }
@@ -201,11 +204,14 @@ function loadHome() {
     var mineList = d.mine.filter(function (it) { return !(it.block && it.block.indexOf('過ぎて') >= 0); });
     mineList.sort(function (a, b) { return (a.block ? 1 : 0) - (b.block ? 1 : 0); }); // 今使えるものを上に
     if (!mineList.length) mine.innerHTML = '<p class="empty">使えるクーポンはまだありません。下の「受け取れるクーポン」から受け取れます。</p>';
+    ccInfo_ = {};
     mineList.forEach(function (item) {
+      item.coupon = Object.assign({}, item.coupon, { coupon_code: item.coupon_code || item.coupon.coupon_code });
+      ccInfo_[item.cc_id] = item;
       var div = document.createElement('div');
       div.innerHTML = item.block
         ? ticketCard(item.coupon, '<button type="button" class="btn" disabled>' + (item.block.indexOf('過ぎて') >= 0 ? '期限切れです' : 'まだ使えません') + '</button><div class="t-sub" style="margin-top:6px;">' + esc(item.block) + '</div>', 'is-off')
-        : ticketCard(item.coupon, '<button type="button" class="btn" data-cc="' + esc(item.cc_id) + '">クーポンを表示する</button>');
+        : ticketCard(item.coupon, '<button type="button" class="btn" data-cc="' + esc(item.cc_id) + '">クーポンを表示する</button>', 'is-tap', 'data-cc="' + esc(item.cc_id) + '"'); // カードのどこをタップしても表示できる
       mine.appendChild(div);
     });
     // 受け取れるクーポン
@@ -225,12 +231,23 @@ function loadHome() {
       if (cpLink) {
         var hit = d.mine.filter(function (it) { return String(it.coupon.coupon_id) === cpLink && !it.block; })[0];
         if (hit) showCoupon(hit.cc_id, closeToTalk_);
+        else {
+          // 押したクーポンが使えない理由を、黙らずに伝える
+          var blocked = d.mine.filter(function (it) { return String(it.coupon.coupon_id) === cpLink && it.block; })[0];
+          var old = (d.used || []).filter(function (it) { return String(it.coupon.coupon_id) === cpLink; });
+          if (blocked) popup_('このクーポンはまだ使えません', blocked.block, 'OK', '', null);
+          else if (old.length) {
+            var ex = old.some(function (it) { return it.status === 'expired'; }) && !old.some(function (it) { return it.status === 'used'; });
+            popup_(ex ? 'このクーポンは切り替わりました' : 'このクーポンはご利用済みです',
+              ex ? '新しい回のクーポンに切り替わったため、前のクーポンは使えません。' : 'お一人様1回までのクーポンです。次の配布をお待ちください。', 'OK', '', null);
+          }
+        }
       }
     }
     // 使い終わったクーポン
     if (!d.used.length && !expired.length) { $('used-block').classList.add('hidden'); }
     else {
-      $('used-block').classList.remove('hidden');
+      $('used-block').classList.add('hidden'); // 使用済み・期限切れのクーポンは表示しない
       d.used.forEach(function (item) {
         var div = document.createElement('div');
         div.className = 'used-row';
@@ -259,9 +276,14 @@ function popup_(title, text, okLabel, cancelLabel, onOk, onCancel) {
   $('mdl-no').onclick = function () { $('mdl').classList.add('hidden'); if (onCancel) onCancel(); };
 }
 var showing_ = false; // 二度押し防止
+var ccInfo_ = {}; // cc_id → 持っているクーポンの情報（何度でも使えるかの判定用）
 function showCoupon(ccId, onCancel) {
   if (showing_) return;
-  popup_('お会計の際にクーポンをご提示ください', 'クーポンを表示すると使用済になりますのでご注意下さい。', '表示する', 'やめる', function () { doShowCoupon_(ccId); }, onCancel);
+  var info = ccInfo_[ccId];
+  var multi = info && info.coupon && info.coupon.use_limit === 'unlimited';
+  popup_('お会計の際にクーポンをご提示ください',
+    multi ? 'スタッフの前で表示してください。\nこのクーポンは期間中なら何度でも使えます。' : 'クーポンを表示すると使用済になりますのでご注意下さい。',
+    '表示する', 'やめる', function () { doShowCoupon_(ccId); }, onCancel);
 }
 // メッセージ画面に戻る（LINEの中ならページを閉じる）
 function closeToTalk_() {
@@ -285,10 +307,13 @@ function doShowCoupon_(ccId) {
     if (!d || !d.ok) { popup_('クーポンを表示できません', (d && d.message) || 'エラーが発生しました。', 'OK', '', loadHome); return; }
     if (!d.used_now) { popup_('このクーポンは使用済みです', 'すでに一度表示されたため、もう使えません（お一人様1回まで）。', 'OK', '', loadHome); return; }
     if (!d.coupon) { showMsg('クーポンの内容を読み込めませんでした。'); return; }
+    var multiUse = d.coupon.use_limit === 'unlimited';
+    d.coupon = Object.assign({}, d.coupon, { coupon_code: d.coupon_code || d.coupon.coupon_code });
     var nowD = new Date();
     var pad = function (n) { return ('0' + n).slice(-2); };
-    $('show-ticket').innerHTML = ticketCard(d.coupon, '').replace(/<\/div>$/, '<div class="stamp">使用済<small>' + (nowD.getMonth() + 1) + '/' + nowD.getDate() + ' ' + pad(nowD.getHours()) + ':' + pad(nowD.getMinutes()) + '</small></div></div>');
+    $('show-ticket').innerHTML = ticketCard(d.coupon, '').replace(/<\/div>$/, '<div class="stamp">' + (multiUse ? 'ご利用' + (d.use_count || 1) + '回目' : '使用済') + '<small>' + (nowD.getMonth() + 1) + '/' + nowD.getDate() + ' ' + pad(nowD.getHours()) + ':' + pad(nowD.getMinutes()) + '</small></div></div>');
     startShowClock_();
+    $('used-note').textContent = multiUse ? 'このクーポンは期間中なら何度でも使えます。' : 'このクーポンは使用済みになりました。';
     $('list-area').classList.add('hidden');
     $('show-area').classList.remove('hidden');
     window.scrollTo(0, 0);
